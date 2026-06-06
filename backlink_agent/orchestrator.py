@@ -147,23 +147,26 @@ def main():
         # Curated targets are already vetted by the user — include them directly (no score cutoff).
         scored_seeded = score_seeded_targets(seeded)
 
-        # New discoveries go through the scorer + the authority threshold.
+        # New discoveries: if an LLM key is available, score them for relevance + threshold.
+        # Otherwise present them for HUMAN review (a keyword rule can't judge a new directory's
+        # quality, and would wrongly drop real SaaS directories that lack a golf keyword).
         openrouter_key = config.get("openrouter_api_key")
+        max_new = config["max_submissions_per_day"] * 3  # cap discoveries shown (default 15)
         if openrouter_key and new_candidates:
             log("Using OpenRouter (Grok via OpenRouter) to score new discoveries...")
             try:
                 scored_new = score_candidates_with_openrouter(new_candidates, openrouter_key, config["min_authority_score"])
+                scored_new = [s for s in scored_new if s["score"] >= config["min_authority_score"]]
             except Exception as e:
-                log(f"OpenRouter scoring failed ({e}), falling back to rule-based scorer.")
-                scored_new = score_candidates_rule_based(new_candidates, config["min_authority_score"])
+                log(f"OpenRouter scoring failed ({e}); presenting discoveries for manual review.")
+                scored_new = score_discoveries_for_review(new_candidates)
         else:
             if new_candidates:
-                log("No OPENROUTER_API_KEY found — using built-in rule-based scorer for discoveries.")
-            scored_new = score_candidates_rule_based(new_candidates, config["min_authority_score"])
+                log("No OPENROUTER_API_KEY — presenting discoveries for manual review.")
+            scored_new = score_discoveries_for_review(new_candidates)
 
-        scored_new = [s for s in scored_new if s["score"] >= config["min_authority_score"]]
         scored_new.sort(key=lambda x: x["score"], reverse=True)
-        scored_new = scored_new[: config["max_candidates_per_day"]]  # keep the list sane
+        scored_new = scored_new[:max_new]  # keep the list focused
 
         # Curated targets first (already sorted by seed score), then qualifying discoveries.
         scored = scored_seeded + scored_new
@@ -275,6 +278,30 @@ def score_seeded_targets(seeded):
     return out
 
 
+def score_discoveries_for_review(candidates):
+    """Present newly-discovered candidates for human review (no auto-judging).
+
+    A keyword rule can't reliably assess a brand-new directory, so discoveries are surfaced at a
+    modest, uniform score (below curated targets) and flagged for review on the dashboard. The
+    human decides; nothing is ever auto-submitted.
+    """
+    out = []
+    for c in candidates:
+        why = (c.get("description") or c.get("title") or "").strip().replace("\n", " ")
+        out.append({
+            "name": c.get("name") or c.get("url", "") or "Unknown",
+            "url": c.get("url", ""),
+            "score": 78,  # above the 75 floor (so it shows), below curated (80+)
+            "topical_relevance": "Review",
+            "justification": why[:200] or "New discovery — review for relevance.",
+            "recommended_action": "Review — new find",
+            "source": c.get("source", "web search"),
+            "submission_method": "",
+            "notes": c.get("method", ""),
+        })
+    return out
+
+
 def score_candidates_rule_based(candidates, min_score):
     """Fallback simple rule-based scoring (golf-niche biased)."""
     scored = []
@@ -321,11 +348,10 @@ def score_candidates_with_openrouter(candidates, api_key, min_score):
     prompt_template = open(BASE_DIR / "backlink_agent/prompts/scoring_prompt.txt").read()
     guidelines = open(BASE_DIR / "authority_guidelines.md").read()
 
-    # You can change the model here. Examples:
-    # "x-ai/grok-3" for Grok (via OpenRouter)
-    # "anthropic/claude-3.5-sonnet" for Claude
-    # "openai/gpt-4o" etc.
-    model = "x-ai/grok-3"   # Using Grok via OpenRouter
+    # Model is configurable via the OPENROUTER_MODEL env var (set it in Railway to switch without
+    # a code change). Default: Google Gemini 3.1 Flash Lite — fast + cheap for relevance scoring.
+    # Other examples: "x-ai/grok-3", "anthropic/claude-3.5-sonnet", "openai/gpt-4o".
+    model = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite").strip()
 
     for c in candidates:
         url_c = c.get("url", "")
