@@ -90,7 +90,7 @@ def main():
                     el.click()
                     clicked = True
                     break
-            except:
+            except Exception:
                 pass
 
         if not clicked:
@@ -106,64 +106,62 @@ def main():
         # Fill form - best effort based on inspection (email + likely product fields)
         print("Filling form fields (best effort)...")
 
-        # Product name
-        for sel in ['input[name*="name"]', 'input[placeholder*="name" i]', 'input[placeholder*="product" i]']:
-            try:
-                page.fill(sel, PRODUCT_NAME, timeout=3000)
-                break
-            except:
-                pass
+        def try_fill_any(selectors: list[str], value: str, *, timeout: int = 3000) -> bool:
+            """Try each selector in order; return True as soon as one fills successfully."""
+            for sel in selectors:
+                try:
+                    page.fill(sel, value, timeout=timeout)
+                    return True
+                except Exception:
+                    continue
+            return False
 
-        # Website
-        for sel in ['input[name*="website"]', 'input[type="url"]', 'input[placeholder*="website" i]', 'input[placeholder*="url" i]']:
-            try:
-                page.fill(sel, WEBSITE, timeout=3000)
-                break
-            except:
-                pass
+        # Track core fields so we never submit an empty/partial form.
+        filled = {
+            "name": try_fill_any(
+                ['input[name*="name"]', 'input[placeholder*="name" i]', 'input[placeholder*="product" i]'],
+                PRODUCT_NAME,
+            ),
+            "website": try_fill_any(
+                ['input[name*="website"]', 'input[type="url"]', 'input[placeholder*="website" i]', 'input[placeholder*="url" i]'],
+                WEBSITE,
+            ),
+            "email": try_fill_any(
+                ['input[name*="email"]', 'input[type="email"]', 'input[placeholder*="email" i]'],
+                EMAIL,
+            ),
+        }
 
-        # Description / short
-        for sel in ['textarea', 'textarea[placeholder*="desc" i]', 'textarea[placeholder*="about" i]']:
-            try:
-                page.fill(sel, SHORT_DESC, timeout=3000)
-                break
-            except:
-                pass
+        # Description / short (optional).
+        try_fill_any(['textarea', 'textarea[placeholder*="desc" i]', 'textarea[placeholder*="about" i]'], SHORT_DESC)
 
-        # Longer desc if second textarea
+        # Longer desc if second textarea (optional).
         textareas = page.query_selector_all("textarea")
         if len(textareas) > 1:
             try:
                 textareas[1].fill(LONG_DESC[:1500])
-            except:
+            except Exception:
                 pass
 
-        # Email
-        for sel in ['input[name*="email"]', 'input[type="email"]', 'input[placeholder*="email" i]']:
-            try:
-                page.fill(sel, EMAIL, timeout=3000)
-                break
-            except:
-                pass
+        # Tags or category (optional).
+        try_fill_any(['input[name*="tag"]', 'input[placeholder*="tag" i]', 'input[name*="category" i]'], TAGS)
 
-        # Tags or category
-        for sel in ['input[name*="tag"]', 'input[placeholder*="tag" i]', 'input[name*="category" i]']:
-            try:
-                page.fill(sel, TAGS, timeout=3000)
-                break
-            except:
-                pass
-
-        # Founder if separate
-        for sel in ['input[name*="founder"]', 'input[placeholder*="founder" i]']:
-            try:
-                page.fill(sel, FOUNDER, timeout=3000)
-                break
-            except:
-                pass
+        # Founder if separate (optional).
+        try_fill_any(['input[name*="founder"]', 'input[placeholder*="founder" i]'], FOUNDER)
 
         page.screenshot(path="tinylaunch_filled.png", full_page=True)
-        print("Filled screenshot saved.")
+        print(f"Filled screenshot saved. Core fields set: {filled}")
+
+        # Guard: don't submit if no core field landed — selectors don't match this form.
+        core_ok = sum(filled.values())
+        if core_ok == 0:
+            print("ABORT: could not fill ANY core field (name/website/email).")
+            print("Selectors likely don't match. Inspect the form in the session viewer and")
+            print("update the selectors. Nothing was submitted.")
+            return
+        if core_ok < len(filled):
+            missing = [k for k, ok in filled.items() if not ok]
+            print(f"WARNING: some core fields were not filled: {missing}. Proceeding — verify the result screenshot.")
 
         # Submit
         print("Submitting...")
@@ -183,7 +181,7 @@ def main():
                     submitted = True
                     print(f"Clicked submit: {sel}")
                     break
-            except:
+            except Exception:
                 pass
 
         if not submitted:

@@ -167,20 +167,30 @@ Personalise opener with one recent piece each. Tuesday–Thursday UK mornings. O
 
 See the dedicated `authority_guidelines.md` for the official scoring framework, target categories, red flags, and what "good" looks like when building authority for scoringzone.net. All research and submissions should be evaluated against these rules.
 
-## Daily Backlink Automation Agent
+## Daily Backlink Automation Agent (Implemented)
 
-See `backlink_automation_plan.md` for the full plan to run research, review, submission, and monitoring as a daily background process.
+The automation is now **live on GitHub Actions** in this repo (see `backlink_automation_plan.md` for the full current implementation details).
 
-Key principles:
-- Modular agents (Research → Review & Score → Submit → Monitor → Report)
-- Heavy reuse of `steel_utils.py`
-- Human-in-the-loop initially (especially for submissions)
-- Strict adherence to authority guidelines
-- Daily reports + updates to our existing trackers
+**Current setup (as-built, mirroring the code):**
+- Hosted via GitHub Actions workflow (`.github/workflows/daily-backlinks.yml`).
+- **Propose job** (scheduled daily at 09:00 UTC or manual `workflow_dispatch` with `mode=propose`): Runs research + LLM scoring (via OpenRouter, defaulting to Grok `x-ai/grok-3` when `OPENROUTER_API_KEY` secret is set; falls back to rule-based). Generates report + shortlist. Creates a GitHub Issue titled "Backlink Proposals - YYYY-MM-DD (Human Review Required)" for human review. Commits artifacts (reports, shortlists, logs) back to the repo. **Never submits automatically.**
+- **Submit job** (manual `workflow_dispatch` only with `mode=submit` + `approved_targets` input): Runs the agent for human-approved targets from the proposal Issue. (Orchestrator submit path is currently a logging stub; real submissions use the existing `submit_*.py` scripts or manual execution for now.) Commits tracker updates.
+- **Human oversight (strict):** Scheduled runs only propose/create the review Issue. You review the Issue and manually trigger submit for approved targets. No auto-approval or auto-submit.
+- **Keys/Secrets (repo + local .env):** `STEEL_API_KEY` (Steel.dev for browser/forms), `OPENROUTER_API_KEY` (LLM scoring via OpenRouter/Grok), `GH_TOKEN` (custom PAT with Contents: Read&write + Issues: Read&write; falls back to default `GITHUB_TOKEN` with workflow permissions set to Read+Write).
+- **Local .env support:** Copy `.env.example` to `.env`, fill keys/mode. Orchestrator auto-loads via python-dotenv for local testing (`AGENT_MODE=propose python3 backlink_agent/orchestrator.py`).
+- **Research:** Basic scraping of known golf/sports-tech roundups (via `backlink_agent/research.py` + `steel_utils.cheap_scrape`) + naive keyword filter for directories/submit forms. (Expandable; no full live web search yet.)
+- **Scoring:** LLM (OpenRouter) with the prompt in `backlink_agent/prompts/scoring_prompt.txt` (now includes full `authority_guidelines.md` for self-contained scoring) or rule-based fallback. Min score 75, golf-niche bias.
+- **Steel.dev:** Used for any browser-based form submissions/CAPTCHA (via `steel_utils.py` and the `submit_*.py` scripts). Supports profiles, cheap scrape for research, full sessions when needed.
+- **Output:** Proposals → GitHub Issue (review there). Submissions → logs + committed tracker updates (e.g., to `directory-submissions.md`).
+- **Other:** Node.js 24 forced (via env var). No pip caching (avoids requirements file issues). `requirements.txt` present. `.gitignore` protects `.env`, logs, data, temps. Human review via Issues; you control all submissions.
 
-## Automation with Steel.dev (CAPTCHA & Anti-Bot Bypass)
+See `backlink_automation_plan.md` for the detailed as-built description, file list, daily behavior, local usage, risks, and success metrics. The old "future phases" and aspirational next steps have been replaced with the current implemented state.
 
-We now have reliable cloud browser automation via **Steel.dev** for anything that normally gets blocked by CAPTCHAs or bot detection.
+The agent is now running on GitHub with the human oversight model. Use the Actions tab to manually test `propose` (creates review Issue) or `submit` (for approved targets). Scheduled propose runs will create daily Issues for review.
+
+## Steel.dev (CAPTCHA & Anti-Bot Bypass) — Used Within the Agent
+
+We use reliable cloud browser automation via **Steel.dev** (for forms, CAPTCHAs, etc.) inside the agent.
 
 **Why this matters for backlinks:**
 - Most directory "get listed" forms, contact pages, and some review sites throw CAPTCHAs (ReCAPTCHA, Cloudflare Turnstile, etc.).
@@ -188,11 +198,11 @@ We now have reliable cloud browser automation via **Steel.dev** for anything tha
 - Steel gives us **stealth fingerprinting + proxies + automatic CAPTCHA solving** in one package.
 - Existing proven pattern already used successfully in the Competitions project (sweepstakes entry automation).
 
-**Key files added:**
+**Key files:**
 - `steel_utils.py` — Context manager `steel_page(solve_captcha=True)` + `wait_for_captchas()` + cheap `client.scrape()` helper. Directly adapted from `Documents/Grok/Competitions/steel_browser.py`.
-- `.env.example` — Put your Steel key here as `STEEL_API_KEY` (the one you shared starts with `ste-ju8...`).
+- Used in `backlink_agent/research.py` (for cheap scraping of roundups) and the `submit_*.py` scripts (for actual form submissions).
 
-**How to use (Python):**
+**How to use (Python, for local testing or extending scripts):**
 ```python
 from steel_utils import steel_page, wait_for_captchas
 
@@ -214,38 +224,47 @@ You also get a live **session viewer URL** printed every time — open it to wat
 - Full docs: https://docs.steel.dev (CAPTCHA specifics: https://docs.steel.dev/overview/stealth/captcha-solving)
 
 **High-value automation targets for this project (prioritized):**
-1. Eat Sleep Golf form submission (we have ready text + assets).
-2. Scraping golf app roundups ("best golf apps", "best putting apps", "short game training tools") to extract new directories, contact forms, and submission opportunities at scale.
-3. Verifying that our listings are live and the backlink is present (visit the directory page and parse).
-4. BetaList / F6S / other pending directories that have forms.
-5. Journalist contact pages or pitch forms (use the v5 pitch email text).
-6. Coach site outreach (if we can find public forms or "feature my students' apps").
+1. Eat Sleep Golf form submission (we have ready text + assets in `eatsleepgolf-submission.txt`).
+2. Scraping golf app roundups ("best golf apps", "best putting apps", "short game training tools") to extract new directories, contact forms, and submission opportunities at scale (see `backlink_agent/research.py` for current known list).
+3. Verifying that our listings are live and the backlink is present (visit the directory page and parse; can be added to monitoring).
+4. BetaList / F6S / other pending directories that have forms (use the agent to discover/score more).
+5. Indie Hackers / community profiles (draft ready in `indie-hackers-launch-draft.md`; value-first posts).
+6. Coach site outreach or other form-based listings (if we can find public forms or "feature my students' apps").
 
-**Next automation steps (I can implement these now):**
-- Script to auto-submit the Eat Sleep Golf listing using the text in `eatsleepgolf-submission.txt`.
-- Bulk discovery scraper that takes a list of roundup URLs and extracts every mentioned directory, "submit your app" link, and contact email.
-- Verifier that checks a list of our known live listings and reports backlink presence + any new signals.
-- General "find more targets" agent that searches for golf directories and resource pages.
+The agent (propose mode) already handles discovery/scoring of these via the known roundups + guidelines. Extend `research.py` or the known list as needed. Use the `submit_*.py` scripts (or extend the orchestrator) for execution.
 
 **Important notes:**
 - CAPTCHA solving is generally on paid Steel plans (not the free Hobby tier). The key you provided should have credits.
 - Always respect robots.txt / terms of the target sites and don't hammer them.
-- Use `DRY_RUN` style flags for safety on real submissions.
+- Use `DRY_RUN=true` style flags (in .env or workflow inputs) for safety on real submissions.
 - Session credits are consumed by browser time + solves — the cheap `scrape()` endpoint is your friend for reconnaissance.
+- The full agent is in `backlink_agent/`; see `backlink_automation_plan.md` for usage, local testing (`source .env && AGENT_MODE=propose python3 backlink_agent/orchestrator.py`), and GitHub Actions integration.
 
-Add any new automated flows or discovered targets to this document and the tracker.
+Add any new automated flows or discovered targets to the trackers and plan.
 
 ---
 
-## Next Actions (Live Project Tasks)
+## Current State & Next Actions (Live Project Tasks)
 
-See the todo list or run the next execution steps. Recommended immediate:
-1. Submit to Eat Sleep Golf (form ready — use the text drafted in `eatsleepgolf-submission.txt`). We can now do this manually or via Steel automation.
-2. Update directory-submissions.md with Eat Sleep + any new live statuses.
-3. Prepare Indie Hackers launch post (or surface the existing draft).
-4. Identify 5 more specific golf roundup / resource pages and draft tailored short pitches.
-5. Optional: Run a backlink profile tool / manual search for current referring domains to baseline.
-6. (New) Use Steel to either automate the Eat Sleep submission or run bulk discovery scraping on golf app roundups.
+The agent is now implemented and running on GitHub Actions (see the updated `backlink_automation_plan.md` for the full as-built description, which mirrors the code: GitHub-hosted propose/submit jobs, OpenRouter/Grok scoring with embedded guidelines, Steel for automation, strict human oversight via Issues, local .env support, etc.).
+
+**Recommended immediate (now that the agent/docs are synced):**
+1. Test a manual "propose" run from the Actions tab (creates a review Issue with current proposals scored via your OpenRouter key).
+2. Review the resulting Issue, approve some targets, then manually trigger "submit" with `mode=submit` + the approved list.
+3. Update `directory-submissions.md` / `backlink-targets.md` with any new live statuses or discoveries from the proposals.
+4. Monitor the first few scheduled propose runs (they will create daily Issues at 09:00 UTC).
+5. (Optional) Extend research (add more roundups to `backlink_agent/research.py`), wire the real `submit_*.py` calls into the orchestrator's submit path, or add monitoring for live listings.
+
+The system is now fully mirrored in the docs and ready for daily use with human oversight. Everything stays in this repo. Let me know the next piece (e.g., test results from the first Issue, more automation wiring, etc.)! 
+
+**Contact for this project:** Stephen Pickering — stephenpickering79@gmail.com  
+**Site:** https://www.scoringzone.net  
+**App:** https://scoringzone.app (PWA)  
+**Founders Programme:** https://scoring-zone-referral.vercel.app/
+
+---
+
+*This document is the single source of truth for the backlinks project. Update it as we execute. Pair it with the canonical `grok-handover.md` for accurate positioning in every piece of outreach.*
 
 **Contact for this project:** Stephen Pickering — stephenpickering79@gmail.com  
 **Site:** https://www.scoringzone.net  

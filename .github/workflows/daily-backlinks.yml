@@ -1,9 +1,5 @@
 name: Daily Backlink Agent
 
-# Opt into Node.js 24 to avoid deprecation warnings for actions/checkout and setup-python
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   schedule:
     # Run every day at 09:00 UTC (adjust as needed, e.g. '0 9 * * *' for 9am UTC)
@@ -33,19 +29,16 @@ jobs:
       contents: write
       issues: write
 
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Use custom GH_TOKEN (PAT with contents:write + issues:write) for full permissions.
           # Falls back to default GITHUB_TOKEN if GH_TOKEN not set (limited perms).
           token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -69,16 +62,24 @@ jobs:
         run: |
           DATE=$(date +'%Y-%m-%d')
           REPORT_FILE="data/daily_report_${DATE}.md"
-          
-          if [ -f "$REPORT_FILE" ]; then
-            # Create a new issue with the report
+          SUMMARY_FILE="data/summary_${DATE}.json"
+
+          if [ ! -f "$REPORT_FILE" ]; then
+            echo "No report file generated; skipping issue creation."
+            exit 0
+          fi
+
+          # Only file an Issue when there's actually something to review.
+          # Avoids spamming an empty Issue every day when research finds nothing.
+          SHORTLIST_SIZE=$(python3 -c "import json,sys; print(json.load(open('$SUMMARY_FILE')).get('shortlist_size', 0))" 2>/dev/null || echo 0)
+          if [ "$SHORTLIST_SIZE" -gt 0 ]; then
             gh issue create \
               --title "Backlink Proposals - ${DATE} (Human Review Required)" \
               --body-file "$REPORT_FILE" \
               --label "backlink-proposal" \
-              || echo "Issue may already exist or creation failed (non-fatal)"
+              || echo "Issue creation failed (non-fatal)"
           else
-            echo "No report file generated; skipping issue creation."
+            echo "Shortlist is empty (${SHORTLIST_SIZE} targets); skipping Issue creation for ${DATE}."
           fi
 
       - name: Commit any generated data / logs / shortlists
@@ -96,19 +97,16 @@ jobs:
     permissions:
       contents: write
 
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Use custom GH_TOKEN (PAT with contents:write + issues:write) for full permissions.
           # Falls back to default GITHUB_TOKEN if GH_TOKEN not set (limited perms).
           token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 

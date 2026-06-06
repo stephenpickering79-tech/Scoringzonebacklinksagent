@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import csv
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
 from steel_utils import cheap_scrape, steel_api_key  # just to validate key is set early
@@ -126,7 +126,7 @@ def extract_potential_targets(scrape_result: dict, base_url: str) -> list[dict]:
 
 def main():
     print("Scoring Zone Backlinks — Target Discovery (Steel cheap scrape mode)")
-    print(f"Started: {datetime.utcnow().isoformat()}Z")
+    print(f"Started: {datetime.now(timezone.utc).isoformat()}")
     print(f"Using Steel key: ...{steel_api_key()[-6:]} (validated)\n")
 
     all_targets = []
