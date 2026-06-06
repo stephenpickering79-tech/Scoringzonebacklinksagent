@@ -348,11 +348,10 @@ def score_candidates_with_openrouter(candidates, api_key, min_score):
     prompt_template = open(BASE_DIR / "backlink_agent/prompts/scoring_prompt.txt").read()
     guidelines = open(BASE_DIR / "authority_guidelines.md").read()
 
-    # You can change the model here. Examples:
-    # "x-ai/grok-3" for Grok (via OpenRouter)
-    # "anthropic/claude-3.5-sonnet" for Claude
-    # "openai/gpt-4o" etc.
-    model = "x-ai/grok-3"   # Using Grok via OpenRouter
+    # Model is configurable via the OPENROUTER_MODEL env var (set it in Railway to switch without
+    # a code change). Default: Google Gemini 3.1 Flash Lite — fast + cheap for relevance scoring.
+    # Other examples: "x-ai/grok-3", "anthropic/claude-3.5-sonnet", "openai/gpt-4o".
+    model = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite").strip()
 
     for c in candidates:
         url_c = c.get("url", "")
