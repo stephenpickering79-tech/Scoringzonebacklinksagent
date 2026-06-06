@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scoring Zone · Backlink Dashboard</title>
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  .wrap { max-width: 960px; margin: 0 auto; padding: 64px 24px 80px; }
+  header.hero { margin-bottom: 44px; }
+  .hero .kicker { margin-bottom: 14px; }
+  .hero h1 { max-width: 16ch; }
+  .hero p { color: var(--muted); max-width: 56ch; margin: 14px 0 0; font-size: 16px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 26px; margin-top: 26px; }
+  .stat .n { font-family: var(--font-mono); font-size: 24px; color: var(--ink); }
+  .stat .l { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    display: flex; flex-direction: column; gap: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 24px; text-decoration: none; color: inherit;
+    box-shadow: var(--shadow-soft); transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--border-strong); text-decoration: none; }
+  .card .tag { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-ink); }
+  .card h2 { font-size: 22px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .card .go { margin-top: auto; font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+  .card .go::after { content: " →"; color: var(--accent-ink); }
+  .mini { height: 90px; border-radius: var(--r); border: 1px solid var(--border); overflow: hidden; position: relative; background: var(--sunken); }
+  footer { margin-top: 48px; color: var(--faint); font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; }
+  /* tiny layout glyphs for each variant */
+  .mini.editorial { background: var(--panel); }
+  .mini.editorial::before { content:""; position:absolute; left:50%; top:14px; transform:translateX(-50%); width:46%; height:62px;
+    background: linear-gradient(var(--sunken-2) 0 0) top/100% 9px no-repeat, linear-gradient(var(--border) 0 0) 0 18px/70% 5px no-repeat,
+    linear-gradient(var(--border) 0 0) 0 30px/90% 5px no-repeat, linear-gradient(var(--border) 0 0) 0 42px/80% 5px no-repeat; }
+  .mini.console { display:flex; }
+  .mini.console::before { content:""; width:26%; background: var(--sunken-2); border-right:1px solid var(--border); }
+  .mini.console::after { content:""; flex:1; margin:12px; border-radius:6px;
+    background: linear-gradient(var(--accent-soft) 0 0) 0 0/30% 16px no-repeat, linear-gradient(var(--border) 0 0) 0 26px/90% 5px no-repeat,
+    linear-gradient(var(--border) 0 0) 0 36px/90% 5px no-repeat, linear-gradient(var(--border) 0 0) 0 46px/60% 5px no-repeat; }
+  .mini.bento { padding:12px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:8px; }
+  .mini.bento i { background: var(--panel); border:1px solid var(--border); border-radius:6px; display:block; }
+  .mini.bento i:first-child { grid-row: span 2; background: var(--accent-soft); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero reveal">
+      <div class="kicker">Scoring Zone · Backlink Agent</div>
+      <h1>Backlink command dashboard</h1>
+      <p>Three layouts, same data. Review the agent's daily proposals, the Steel automation sessions, and every directory submission with its Domain Rating. Pick the layout you like — we'll promote it to the default.</p>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <div class="grid">
+      <a class="card reveal" style="animation-delay:.05s" href="editorial/">
+        <span class="tag">Variant A</span>
+        <div class="mini editorial"></div>
+        <h2>Editorial</h2>
+        <p>Calm single column, large serif headings, generous whitespace. Closest to the claude.ai reading feel.</p>
+        <span class="go">Open editorial</span>
+      </a>
+      <a class="card reveal" style="animation-delay:.12s" href="console/">
+        <span class="tag">Variant B</span>
+        <div class="mini console"></div>
+        <h2>Console</h2>
+        <p>Sidebar navigation, KPI cards, dense sortable tables with sticky headers. The most dashboard-like.</p>
+        <span class="go">Open console</span>
+      </a>
+      <a class="card reveal" style="animation-delay:.19s" href="bento/">
+        <span class="tag">Variant C</span>
+        <div class="mini bento"><i></i><i></i><i></i></div>
+        <h2>Bento</h2>
+        <p>A bento grid of cards — KPIs, latest proposals, sessions and top submissions at a glance. Click to expand.</p>
+        <span class="go">Open bento</span>
+      </a>
+    </div>
+
+    <footer id="foot">Static dashboard · generated by backlink_agent/dashboard.py</footer>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    BL.loadAll("data/").then((data) => {
+      const k = BL.kpis(data);
+      const stats = [
+        [k.submissions, "Submissions"],
+        [k.live, "Live backlinks"],
+        [k.avgDr ?? "—", "Avg DR"],
+        [k.sessions, "Sessions"],
+      ];
+      document.getElementById("stats").innerHTML = stats.map(
+        (s) => `<div class="stat"><div class="n">${s[0]}</div><div class="l">${s[1]}</div></div>`
+      ).join("");
+      if (data.meta && data.meta.generated_at) {
+        document.getElementById("foot").textContent =
+          "Static dashboard · generated " + BL.fmtDateTime(data.meta.generated_at) + " by backlink_agent/dashboard.py";
+      }
+    });
+  </script>
+</body>
+</html>

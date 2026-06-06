@@ -1,0 +1,164 @@
+[
+  {
+    "name": "BetaList",
+    "date": "2026-04-07",
+    "dr": 75,
+    "dr_label": "75",
+    "status": "Pending review",
+    "url": "https://betalist.com/startups/scoring-zone",
+    "notes": "Lite tier ($39), dofollow"
+  },
+  {
+    "name": "Crunchbase",
+    "date": "2026-04-07",
+    "dr": 91,
+    "dr_label": "91",
+    "status": "Live ✓ (confirmed 2026-04-19)",
+    "url": "https://www.crunchbase.com/organization/scoring-zone",
+    "notes": "Full profile, strong credibility backlink"
+  },
+  {
+    "name": "Product Hunt",
+    "date": "2026-04-08",
+    "dr": 91,
+    "dr_label": "91",
+    "status": "Submitted",
+    "url": null,
+    "notes": "Direct submit by Stephen"
+  },
+  {
+    "name": "SaaSHub",
+    "date": "2026-04-08",
+    "dr": 68,
+    "dr_label": "68",
+    "status": "Live ✓ (2026-04-16)",
+    "url": null,
+    "notes": "Free tier"
+  },
+  {
+    "name": "SourceForge",
+    "date": "2026-04-09",
+    "dr": 92,
+    "dr_label": "92",
+    "status": "Blocked",
+    "url": null,
+    "notes": "Phone verification required"
+  },
+  {
+    "name": "AppSumo",
+    "date": "2026-04-09",
+    "dr": 90,
+    "dr_label": "90",
+    "status": "Applied",
+    "url": null,
+    "notes": "Launch application submitted"
+  },
+  {
+    "name": "Bright Data",
+    "date": "2026-04-10",
+    "dr": null,
+    "dr_label": "—",
+    "status": "Submitted",
+    "url": null,
+    "notes": "—"
+  },
+  {
+    "name": "Turbo0",
+    "date": "2026-04-14",
+    "dr": 78,
+    "dr_label": "78",
+    "status": "Live ✓",
+    "url": null,
+    "notes": "Free, dofollow, reciprocal required"
+  },
+  {
+    "name": "PeerPush",
+    "date": "2026-04-14",
+    "dr": 73,
+    "dr_label": "73",
+    "status": "Live ✓",
+    "url": null,
+    "notes": "Paid $35, dofollow, SEO/AEO optimised"
+  },
+  {
+    "name": "SaasHunt",
+    "date": "2026-04-14",
+    "dr": 49,
+    "dr_label": "49",
+    "status": "Live ✓ (#1 Project of the Day 2026-04-19)",
+    "url": "https://saashunt.best/projects/scoring-zone",
+    "notes": "Paid $9, badge in footer"
+  },
+  {
+    "name": "Toolfio",
+    "date": "2026-04-14",
+    "dr": 50,
+    "dr_label": "50",
+    "status": "Live ✓",
+    "url": null,
+    "notes": "Free, dofollow, badge"
+  },
+  {
+    "name": "Tiny Startups",
+    "date": "2026-04-14",
+    "dr": null,
+    "dr_label": "—",
+    "status": "Submitted",
+    "url": null,
+    "notes": "Free"
+  },
+  {
+    "name": "AlternativeTo",
+    "date": "2026-04-14",
+    "dr": null,
+    "dr_label": "—",
+    "status": "Rejected",
+    "url": null,
+    "notes": "No direct peers yet (validates positioning)"
+  },
+  {
+    "name": "F6S",
+    "date": "2026-05-04",
+    "dr": 78,
+    "dr_label": "78",
+    "status": "Submitted",
+    "url": "https://www.f6s.com/scoring-zone",
+    "notes": "Free, dofollow. Founder + company page"
+  },
+  {
+    "name": "Medium (self-published)",
+    "date": "2026-04-19",
+    "dr": 96,
+    "dr_label": "96",
+    "status": "Live ✓",
+    "url": null,
+    "notes": "Founder's Story Month 1 Review"
+  },
+  {
+    "name": "Eat Sleep Golf - Get Listed",
+    "date": "Prepared (2026-06)",
+    "dr": null,
+    "dr_label": "Niche high",
+    "status": "Ready to submit",
+    "url": null,
+    "notes": "**#1 priority**. Form + optional donation. Text + assets ready. Steel script prepared (`submit_eatsleepgolf.py`)"
+  },
+  {
+    "name": "Eat Sleep Golf - Directory",
+    "date": "Prepared (2026-06)",
+    "dr": null,
+    "dr_label": "Niche high",
+    "status": "Not submitted",
+    "url": null,
+    "notes": "Main golf directory page"
+  },
+  {
+    "name": "Eat Sleep Golf - Flyover Directory",
+    "date": "Prepared (2026-06)",
+    "dr": null,
+    "dr_label": "Niche",
+    "status": "Not submitted",
+    "url": null,
+    "notes": "Secondary"
+  }
+]

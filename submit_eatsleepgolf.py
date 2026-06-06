@@ -34,7 +34,11 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import steel_page
+from steel_utils import record_session, steel_page
+
+# Dashboard session metadata
+MODE = "submit_eatsleepgolf"
+TARGET_URL = "https://www.eatsleepgolf.net/get-listed"
 
 # === Submission data (from eatsleepgolf-submission.txt) ===
 COMPANY_NAME = "Scoring Zone"
@@ -79,6 +83,8 @@ def main():
         print(f"Session viewer: Check the printed URL above or previous output.")
         print("Navigating to form...")
 
+        screenshots: list[str] = []  # tracked for the dashboard session record
+
         # Load the page
         page.goto("https://www.eatsleepgolf.net/get-listed", wait_until="domcontentloaded", timeout=60000)
         time.sleep(3)  # Give time for any dynamic content / anti-bot
@@ -86,6 +92,7 @@ def main():
         # Optional: Take initial screenshot for debugging
         screenshot_path = Path("eatsleepgolf_form_before.png")
         page.screenshot(path=str(screenshot_path), full_page=True)
+        screenshots.append(screenshot_path.name)
         print(f"Screenshot before fill: {screenshot_path}")
 
         # === Fill the form ===
@@ -162,6 +169,7 @@ def main():
 
         print(f"Form fields filled (best effort). Core fields set: {filled}")
         page.screenshot(path="eatsleepgolf_form_filled.png", full_page=True)
+        screenshots.append("eatsleepgolf_form_filled.png")
 
         # Guard: never submit if none of the core fields landed — selectors likely don't
         # match this form, and clicking submit would fire an empty/garbage submission.
@@ -170,6 +178,8 @@ def main():
             print("ABORT: could not fill ANY core field (name/website/email).")
             print("The form selectors probably don't match. Open the session viewer above,")
             print("inspect the real field names, and update the selectors. Nothing was submitted.")
+            record_session(session_id, target=TARGET_URL, mode=MODE,
+                           outcome="aborted", screenshots=screenshots)
             return
         if core_ok < len(filled):
             missing = [k for k, ok in filled.items() if not ok]
@@ -212,7 +222,13 @@ def main():
         # Screenshot the result (confirmation or donation prompt)
         result_screenshot = Path(f"eatsleepgolf_submitted_{int(time.time())}.png")
         page.screenshot(path=str(result_screenshot), full_page=True)
+        screenshots.append(result_screenshot.name)
         print(f"Result screenshot saved: {result_screenshot}")
+
+        # Record the submission for the dashboard.
+        record_session(session_id, target=TARGET_URL, mode=MODE,
+                       outcome="submitted" if submitted else "aborted",
+                       screenshots=screenshots)
 
         # Print any visible success text
         try:

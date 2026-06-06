@@ -1,0 +1,172 @@
+/* ===========================================================================
+   Scoring Zone Backlink Dashboard — shared design tokens (Claude style)
+   Warm ink + clay on cream. Fraunces (display) · Hanken Grotesk (body) ·
+   JetBrains Mono (data). Imported by all three variants + the chooser.
+   =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* surfaces */
+  --bg:        #faf9f5;
+  --panel:     #ffffff;
+  --sunken:    #f0eee6;
+  --sunken-2:  #e9e6da;
+  --border:    #e6e2d8;
+  --border-strong: #ddd8ca;
+
+  /* ink */
+  --ink:    #1f1e1d;
+  --muted:  #6b6862;
+  --faint:  #908b80;
+
+  /* clay accent (the Claude signature) */
+  --accent:      #d97757;
+  --accent-ink:  #b15532;   /* readable clay for text/links on cream */
+  --accent-soft: #f6e7df;   /* tint for chips / hovers */
+
+  /* status (warm) */
+  --live:    #3f7d5b;
+  --live-bg: #e3ede4;
+  --pending: #b8732f;
+  --pending-bg: #f5e9d7;
+  --blocked: #b0483c;
+  --blocked-bg: #f3e1dd;
+  --stone:   #807b71;
+  --stone-bg:#ececdf;
+
+  /* type */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:    'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* shape */
+  --r-sm: 8px;
+  --r:    12px;
+  --r-lg: 18px;
+  --shadow-soft: 0 1px 2px rgba(31,30,29,.04), 0 8px 24px -16px rgba(31,30,29,.18);
+  --shadow-lift: 0 2px 4px rgba(31,30,29,.05), 0 18px 40px -24px rgba(31,30,29,.28);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* faint warm paper grain via layered gradients (no images) */
+  background-image:
+    radial-gradient(circle at 18% -10%, rgba(217,119,87,.05), transparent 42%),
+    radial-gradient(circle at 100% 0%, rgba(63,125,91,.04), transparent 40%);
+  background-attachment: fixed;
+}
+
+a { color: var(--accent-ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.05; }
+h2 { font-size: clamp(20px, 2.4vw, 26px); line-height: 1.15; }
+
+.mono { font-family: var(--font-mono); }
+
+/* eyebrow / section label */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* status badge ----------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+.badge.live    { color: var(--live);    background: var(--live-bg);    border-color: #cfe0d2; }
+.badge.pending { color: var(--pending); background: var(--pending-bg); border-color: #ecdcc0; }
+.badge.blocked { color: var(--blocked); background: var(--blocked-bg); border-color: #ecccc5; }
+.badge.default { color: var(--stone);   background: var(--stone-bg);   border-color: #ddd8c8; }
+
+/* DR pill ---------------------------------------------------------------- */
+.dr {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.dr-bar { height: 4px; border-radius: 2px; background: var(--accent); opacity: .85; }
+.dr-track { background: var(--sunken-2); border-radius: 2px; height: 4px; }
+
+/* tables (shared base) --------------------------------------------------- */
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 11px 14px; vertical-align: top; }
+thead th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-strong);
+}
+tbody td { border-bottom: 1px solid var(--border); font-size: 14px; }
+tbody tr:last-child td { border-bottom: none; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.truncate { max-width: 1px; }      /* used with width hints per-variant */
+.cell-why { color: var(--muted); }
+
+/* sortable header affordance */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--accent-ink); }
+th.sortable .arrow { opacity: .5; margin-left: 4px; }
+th.sortable[aria-sort] .arrow { opacity: 1; color: var(--accent-ink); }
+
+/* sparkline -------------------------------------------------------------- */
+.spark { display: block; overflow: visible; }
+.spark .line {
+  fill: none; stroke: var(--accent); stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1000; stroke-dashoffset: 1000;
+  animation: spark-draw 1.1s ease forwards .2s;
+}
+.spark .dot { fill: var(--accent); }
+.spark .area { fill: var(--accent); opacity: .08; }
+@keyframes spark-draw { to { stroke-dashoffset: 0; } }
+
+/* row reveal on load ----------------------------------------------------- */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.reveal { animation: rise .5s ease both; }
+
+/* empty state ------------------------------------------------------------ */
+.empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark .line { animation: none; stroke-dashoffset: 0; }
+  .reveal { animation: none; }
+}

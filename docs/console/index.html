@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Backlink Dashboard · Console</title>
+<link rel="stylesheet" href="../tokens.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">SZ</div>
+        <div>
+          <div class="brand-name">Scoring Zone</div>
+          <div class="brand-sub">Backlink agent</div>
+        </div>
+      </div>
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="output"><span class="ic">◷</span> Output</button>
+        <button class="nav-item" data-view="sessions"><span class="ic">⦿</span> Sessions</button>
+        <button class="nav-item" data-view="submissions"><span class="ic">▤</span> Submissions</button>
+      </nav>
+      <div class="side-foot">
+        <a href="../">← all layouts</a>
+        <div class="gen mono" id="gen"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="kicker" id="crumb">Output</div>
+          <h1 id="title">Latest proposals</h1>
+        </div>
+        <div class="updated mono" id="updated"></div>
+      </header>
+
+      <section class="kpis" id="kpis"></section>
+
+      <section class="view" id="view-output">
+        <div class="panel">
+          <div class="panel-head"><h2>Scored shortlist</h2><span class="panel-meta" id="proposalMeta"></span></div>
+          <div class="panel-body" id="proposals"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Run history</h2></div>
+          <div class="panel-body" id="runs"></div>
+        </div>
+      </section>
+
+      <section class="view hidden" id="view-sessions">
+        <div class="panel">
+          <div class="panel-head"><h2>Steel sessions</h2><span class="panel-meta">viewer links omitted (public page)</span></div>
+          <div class="panel-body" id="sessions"></div>
+        </div>
+      </section>
+
+      <section class="view hidden" id="view-submissions">
+        <div class="panel">
+          <div class="panel-head"><h2>Directory submissions</h2><span class="panel-meta">click a column to sort</span></div>
+          <div class="panel-body" id="submissions"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="../shared.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

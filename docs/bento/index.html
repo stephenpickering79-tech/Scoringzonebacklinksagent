@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Backlink Dashboard · Bento</title>
+<link rel="stylesheet" href="../tokens.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="head reveal">
+      <div>
+        <div class="kicker">Scoring Zone · Backlink Agent</div>
+        <h1>At a glance</h1>
+      </div>
+      <a class="back" href="../">← all layouts</a>
+    </header>
+
+    <div class="bento" id="bento"></div>
+
+    <footer class="foot" id="foot"></footer>
+  </div>
+
+  <!-- expand modal -->
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 id="modalTitle"></h2>
+        <button class="x" id="modalClose" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="../shared.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -30,7 +30,11 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import steel_page
+from steel_utils import record_session, steel_page
+
+# Dashboard session metadata
+MODE = "submit_tinylaunch"
+TARGET_URL = "https://www.tinylaunch.com/submit"
 
 # Data from tinylaunch-submission.txt
 PRODUCT_NAME = "Scoring Zone"
@@ -67,10 +71,12 @@ def main():
 
     with steel_page(solve_captcha=True) as (pw, browser, page, client, sid):
         print("Navigating to Tinylaunch...")
+        screenshots: list[str] = []  # tracked for the dashboard session record
         page.goto("https://www.tinylaunch.com/", wait_until="domcontentloaded", timeout=60000)
         time.sleep(2)
 
         page.screenshot(path="tinylaunch_home.png", full_page=True)
+        screenshots.append("tinylaunch_home.png")
         print("Home screenshot saved.")
 
         # Try to find and click "submit product"
@@ -101,6 +107,7 @@ def main():
         print(f"On submit page. Title: {page.title()}")
 
         page.screenshot(path="tinylaunch_submit_page.png", full_page=True)
+        screenshots.append("tinylaunch_submit_page.png")
         print("Submit page screenshot saved.")
 
         # Fill form - best effort based on inspection (email + likely product fields)
@@ -150,6 +157,7 @@ def main():
         try_fill_any(['input[name*="founder"]', 'input[placeholder*="founder" i]'], FOUNDER)
 
         page.screenshot(path="tinylaunch_filled.png", full_page=True)
+        screenshots.append("tinylaunch_filled.png")
         print(f"Filled screenshot saved. Core fields set: {filled}")
 
         # Guard: don't submit if no core field landed — selectors don't match this form.
@@ -158,6 +166,8 @@ def main():
             print("ABORT: could not fill ANY core field (name/website/email).")
             print("Selectors likely don't match. Inspect the form in the session viewer and")
             print("update the selectors. Nothing was submitted.")
+            record_session(sid, target=TARGET_URL, mode=MODE,
+                           outcome="aborted", screenshots=screenshots)
             return
         if core_ok < len(filled):
             missing = [k for k, ok in filled.items() if not ok]
@@ -192,7 +202,12 @@ def main():
 
         result_ss = Path(f"tinylaunch_submitted_{int(time.time())}.png")
         page.screenshot(path=str(result_ss), full_page=True)
+        screenshots.append(result_ss.name)
         print(f"Result screenshot: {result_ss}")
+
+        record_session(sid, target=TARGET_URL, mode=MODE,
+                       outcome="submitted" if submitted else "aborted",
+                       screenshots=screenshots)
 
         print("\n=== Tinylaunch submission attempt complete ===")
         print("Review screenshots and session viewer. If account creation or additional steps required, complete manually and note in tracker.")
