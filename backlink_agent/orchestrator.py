@@ -67,8 +67,8 @@ def log(message: str):
 
 def load_config():
     return {
-        "max_candidates_per_day": int(os.getenv("MAX_CANDIDATES", "50")),
-        "max_submissions_per_day": int(os.getenv("MAX_SUBMISSIONS", "5")),
+        "max_candidates_per_day": int(os.getenv("MAX_CANDIDATES_PER_DAY", "50")),
+        "max_submissions_per_day": int(os.getenv("MAX_SUBMISSIONS_PER_DAY", "5")),
         "dry_run": os.getenv("DRY_RUN", "true").lower() in ("1", "true", "yes"),
         "min_authority_score": 75,
         "mode": os.getenv("AGENT_MODE", "propose").lower(),

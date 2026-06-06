@@ -65,8 +65,9 @@ def steel_api_key() -> str:
     if not key:
         raise RuntimeError(
             "STEEL_API_KEY is missing. "
-            "Set it in your environment or .env file. "
-            "You can use the key you shared (ste-ju8VzF3ff9bE...)."
+            "Set it in your environment or .env file "
+            "(copy .env.example to .env and fill in your key). "
+            "Manage keys at https://app.steel.dev"
         )
     return key
 

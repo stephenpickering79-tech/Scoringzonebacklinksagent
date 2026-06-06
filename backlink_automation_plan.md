@@ -1,241 +1,127 @@
-# Scoring Zone — Daily Backlink Research + Submission Agent Plan (2026)
+# Scoring Zone — Daily Backlink Research + Submission Agent (Current Implementation)
 
-**Objective:** Create a reliable, mostly autonomous system that:
-- Discovers new high-authority, relevant backlink opportunities daily
-- Reviews and scores them against our authority guidelines
-- Attempts submissions (with human oversight initially)
-- Tracks results and reports daily
-- Runs in the background with minimal daily intervention
+**Status:** The agent is fully implemented and hosted on GitHub Actions in this repo. It runs daily with a strict **human oversight model** (no automatic submissions). Research + LLM-powered review happens automatically and produces a GitHub Issue for review. Submissions are only executed when you manually trigger them after approving targets.
 
 **Core Principles (non-negotiable):**
 - Authority and relevance first (see `authority_guidelines.md`)
 - Only use Steel.dev for browser automation (CAPTCHA/stealth already solved)
 - Respect rate limits and target site terms
-- Human-in-the-loop for the first 2-4 weeks (agent proposes, human approves submissions)
-- Everything logged to our existing trackers (`directory-submissions.md`, `backlink-targets.md`) + simple logs
+- Strict human-in-the-loop: Scheduled runs only *propose* (create review Issue). You explicitly approve and trigger submissions.
+- Everything logged to our existing trackers (`directory-submissions.md`, `backlink-targets.md`) + committed data/logs in the repo
+- Uses OpenRouter (defaulting to Grok via `x-ai/grok-3`) for scoring when `OPENROUTER_API_KEY` is provided; falls back to rule-based scoring otherwise
 
 ---
 
-## High-Level Architecture
+## High-Level Architecture (What Was Actually Built)
 
-**Language:** Python (leverage existing `steel_utils.py`, `discover_targets.py`, `submit_*.py`)
+**Language:** Python
 
-**Key Components (modular agents):**
-1. **Research Agent** — Daily discovery of candidates
-2. **Review & Scoring Agent** — Filter + rank using authority guidelines + LLM
-3. **Submission Agent** — Automate form/profile submissions via Steel
-4. **Monitoring Agent** — Check previous submissions for "live" status + basic traffic signals
-5. **Orchestrator + Reporter** — Runs the daily loop and produces a summary
+**Hosting:** GitHub Actions (in this repo). Scheduled daily "propose" job + manual `workflow_dispatch` for both modes. Uses `gh` CLI for issues, commits changes back to the repo.
 
-**Scheduling Options (pick one):**
-- Simple & reliable: `cron` (Mac/Linux) or Task Scheduler (Windows) running `orchestrator.py` once per day
-- More robust: Python `schedule` library inside a long-running script or Docker container
-- Future: Prefect, Airflow, or even a small FastAPI + Celery setup if this grows
+**Key Files (current structure):**
+- `.github/workflows/daily-backlinks.yml` — The GitHub Action. Two jobs:
+  - `propose`: Runs on schedule (daily 09:00 UTC) **or** manual `workflow_dispatch` with `mode=propose`. Does research + scoring, generates report, creates GitHub Issue for human review. Commits artifacts. Never submits.
+  - `submit`: Only runs on manual `workflow_dispatch` with `mode=submit` + `approved_targets` input. Runs the agent for approved items (current orchestrator submit path is a stub that logs; real submissions use the separate `submit_*.py` scripts or manual execution). Commits tracker updates.
+- `backlink_agent/orchestrator.py` — Main entry point. 
+  - Loads `.env` (via python-dotenv) for local runs.
+  - Supports `AGENT_MODE=propose` (research + score → report + shortlist JSON) or `submit` (for approved targets).
+  - Research: Calls `research.py` (scrapes known golf/sports-tech roundup pages + naive filter for "directory/submit/list/resource/tools" links).
+  - Scoring: If `OPENROUTER_API_KEY` present, calls OpenRouter (model `x-ai/grok-3` by default) using the prompt in `prompts/scoring_prompt.txt` (now includes the full `authority_guidelines.md` content for self-contained LLM scoring). Otherwise falls back to simple rule-based scorer (golf-niche biased, min score 75).
+  - Generates `data/daily_report_*.md` and `data/shortlist_*.json`.
+  - Submit path currently logs approved targets (placeholder/TODO for full wiring to submission scripts).
+  - Configurable via env: `DRY_RUN`, `MAX_CANDIDATES_PER_DAY`, `MAX_SUBMISSIONS_PER_DAY`.
+- `backlink_agent/research.py` — Basic discovery: Scrapes a hardcoded list of golf app roundups (golfinsideruk, todays-golfer, etc.) using `steel_utils.cheap_scrape`, extracts candidate links matching keywords. Returns list of `{url, source, ...}`. (Includes TODO for live web search expansion.)
+- `backlink_agent/prompts/scoring_prompt.txt` — LLM prompt for scoring (expert backlink strategist role, outputs JSON with scores/justifications/actions per the guidelines).
+- `steel_utils.py` + `requirements.txt` — Steel.dev browser automation (for any form submissions that need real browser + CAPTCHA solving) + deps.
+- `authority_guidelines.md` — The scoring rules (tiers, red flags, framework) that the LLM prompt now includes verbatim.
+- `.env.example` + local `.env` (gitignored) — For local testing (keys + mode).
+- `backlink-strategy.md`, `backlink-targets.md`, `directory-submissions.md` — Trackers and strategy (updated as part of runs).
+- Submission helpers: `submit_eatsleepgolf.py`, `submit_tinylaunch.py`, `indie-hackers-launch-draft.md`, etc. (used for actual submissions; agent submit path can call/reference them).
 
-**State & Memory:**
-- Primary: Our existing Markdown trackers (parse + append)
-- Secondary: `data/candidates.json`, `data/submissions_log.json`, `logs/daily_YYYY-MM-DD.log`
-- Optional: Lightweight SQLite for querying later
+**Secrets (GitHub repo) + Local .env:**
+- `STEEL_API_KEY` (Steel.dev for browser automation)
+- `OPENROUTER_API_KEY` (for LLM scoring via OpenRouter; defaults to Grok `x-ai/grok-3`)
+- `GH_TOKEN` (custom fine-grained PAT with Contents: Read&write + Issues: Read&write) — preferred for reliability. Falls back to default `GITHUB_TOKEN` (with workflow permissions set to Read+Write in repo Settings > Actions > General).
+- The `.env` (local only) + repo secrets use matching names. Orchestrator auto-loads `.env` for local runs.
 
-**LLM Usage:**
-- The review/scoring step can use **Grok** (xAI), Claude (Anthropic), OpenAI, or a local model.
-- We have a dedicated prompt at `backlink_agent/prompts/scoring_prompt.txt` written for this.
-- You can switch models by setting the appropriate API key secret (e.g. `XAI_API_KEY` for Grok).
-- The orchestrator falls back to the simple rule-based scorer if no LLM key is provided or if the call fails.
+**Human Oversight (Strict — No Auto-Submissions):**
+- Scheduled/propose runs: Research + score → GitHub Issue for review. `DRY_RUN=true` by default in scheduled context.
+- You review the Issue (reply with approvals or note names).
+- You manually trigger submit (Actions → Run workflow → mode=submit + approved_targets list).
+- This matches the "human-in-the-loop" requirement. No auto-approval or auto-submit logic is active.
 
----
-
-## Daily Workflow (what the agent should do every day)
-
-**Time:** Suggested 8-10am local (after any manual review from previous day)
-
-**Step-by-step:**
-
-1. **Research Phase** (15-30 min)
-   - Run enhanced version of `discover_targets.py` against known roundup pages + new search queries
-   - Perform targeted web searches: "golf directory submit", "best golf apps [current year]", "sports tech directory", "golf coach tools list", etc.
-   - Scrape promising pages using cheap `client.scrape()` first, then full Steel pages only when needed
-   - Output: 30-100 raw candidate URLs
-
-2. **Review & Scoring Phase** (20-40 min)
-   - For each candidate:
-     - Visit page with Steel (or scrape)
-     - Extract: title, description, submission method, any DR/traffic signals, dofollow hints, contact/submit form details
-     - Run LLM scoring prompt against `authority_guidelines.md` criteria
-     - Apply hard filters (minimum relevance, no obvious spam, has real submission path)
-   - Output: Ranked shortlist of 5-12 high-quality targets with scores + justification + recommended submission approach
-
-3. **Submission Phase** (variable, 0-60+ min)
-   - For each approved target in shortlist:
-     - If form-based and we have a template → run Steel submission (like current Eat Sleep / Tinylaunch scripts)
-     - If profile-based → prepare content + either auto-fill (if possible) or flag for manual
-     - Always: Take screenshots before/after, extract confirmation
-     - Log to trackers immediately
-   - Safety: `DRY_RUN=true` flag by default. Human must approve before real submissions in early phase.
-
-4. **Monitoring Phase** (10-15 min)
-   - Check yesterday's submissions for "live" status (visit the directory page, search for "Scoring Zone")
-   - Check a rotating sample of older live listings
-   - Optional: Basic GSC or Analytics pull for new referring domains (can be manual or via API later)
-
-5. **Reporting**
-   - Generate daily summary (file + optional email/Slack):
-     - New candidates researched
-     - Shortlist with scores
-     - Submissions attempted + results
-     - Newly live listings
-     - Any issues or items needing human review
-   - Append to `logs/daily_YYYY-MM-DD.log` and update the main trackers
+**Current Limitations / Notes (as-built):**
+- Research is starting-point scraping of known roundups (not full live search yet).
+- Submit path in orchestrator is a logging stub (real execution via the `submit_*.py` scripts or manual for now; can be wired further).
+- No full monitoring/live-status checking in the agent yet (manual or future addition).
+- Uses cheap Steel scrape where possible for research; full browser sessions only when needed for submissions.
+- Commits artifacts back (reports, shortlists, tracker updates) for audit trail.
+- Node.js 24 forced via env var (to avoid deprecation warnings for checkout/setup-python).
+- No pip caching in setup-python (avoids requirements file lookup issues).
+- .gitignore protects secrets, logs, data, temp files.
 
 ---
 
-## Implementation Phases (Recommended Rollout)
+## Daily Workflow (Actual Current Behavior)
 
-### Phase 1 — Foundation (Week 1)
-- Create `backlink_agent/` directory
-- `research.py` — improved discovery (expand on current `discover_targets.py`)
-- `review.py` — scoring engine + LLM prompt
-- `monitor.py` — live status checker
-- `orchestrator.py` — simple daily runner
-- `authority_guidelines.md` (already created)
-- Update existing `backlink-strategy.md` to reference the agent
+**Scheduled (automatic "propose" run — 09:00 UTC):**
+1. Checkout + Python setup (no pip cache).
+2. Install from requirements.txt (fallback if needed).
+3. Run `orchestrator.py` with `AGENT_MODE=propose`, `DRY_RUN=true`.
+4. Research scrapes known roundups → candidates.
+5. Scoring via OpenRouter/Grok (or rules) → filtered shortlist (min 75 score).
+6. Generate report + shortlist JSON.
+7. Create GitHub Issue with the proposals (for your review).
+8. Commit artifacts back to repo.
+9. (Non-fatal errors are logged but do not stop the job.)
 
-**Deliverable:** Agent can research + review daily and produce a ranked shortlist + report. No auto-submission yet.
+**Manual "submit" run (you trigger after review):**
+- Same setup.
+- Run with `AGENT_MODE=submit` + `APPROVED_TARGETS=...`.
+- Executes (stub for now) + commits tracker updates.
+- Use the separate submission scripts for actual form/browser work as needed.
 
-### Phase 2 — Submission Automation (Week 2)
-- Generalize submission logic (support multiple form templates)
-- Create `templates/` for common submission types (golf directory, SaaS profile, etc.)
-- Add `submit.py` that can handle the most common patterns using Steel
-- Add human approval step (e.g. agent creates a "pending_submissions.json" file)
-
-**Deliverable:** Agent can propose + (with approval) execute submissions for form-based targets.
-
-### Phase 3 — Monitoring + Polish (Week 3+)
-- Improve monitoring (detect when listings go live automatically)
-- Add basic traffic attribution tracking (UTM + GSC)
-- Add simple "as featured in" suggestions for the website
-- Increase autonomy (lower human review threshold for high-scoring targets)
-- Add weekly summary report
-
----
-
-## Technical Details & Existing Assets
-
-**Reuse heavily:**
-- `steel_utils.py` (the `steel_page` context manager is gold)
-- `discover_targets.py` (base for research)
-- `submit_eatsleepgolf.py` and `submit_tinylaunch.py` (patterns for submission scripts)
-- Existing visual assets and submission text files
-
-**New files to create:**
-- `backlink_agent/research.py`
-- `backlink_agent/review.py`
-- `backlink_agent/submit.py` (or per-type scripts)
-- `backlink_agent/monitor.py`
-- `backlink_agent/orchestrator.py`
-- `backlink_agent/prompts/scoring_prompt.txt`
-- `backlink_agent/templates/`
-
-**Environment / Secrets (GitHub repo + local .env):**
-- STEEL_API_KEY (Steel browser)
-- OPENROUTER_API_KEY (for LLM scoring via Grok or other models on OpenRouter)
-- GH_TOKEN (custom PAT with Contents: Read&write + Issues: Read&write) OR rely on default GITHUB_TOKEN (with workflow permissions set)
-- The .env.example documents all. Copy to .env for local runs (orchestrator loads it automatically).
-
-**Example cron (Mac/Linux):**
+**Local testing (from this folder):**
 ```bash
-0 9 * * * cd "/Users/stephenpickering/Documents/Grok/Scoring Zone Backlinks" && python3 backlink_agent/orchestrator.py >> logs/daily_$(date +\%Y-\%m-\%d).log 2>&1
+# Load keys
+source .env  # or let python-dotenv handle it
+
+# Propose (research + review, generate local report)
+AGENT_MODE=propose python3 backlink_agent/orchestrator.py
+
+# Submit (approved targets only)
+AGENT_MODE=submit APPROVED_TARGETS="Eat Sleep Golf - Get Listed" DRY_RUN=true python3 backlink_agent/orchestrator.py
 ```
 
----
+**GitHub Actions Usage:**
+- Scheduled: Automatic propose (creates Issue).
+- Manual: Actions tab → Daily Backlink Agent → Run workflow. Choose mode + approved_targets (for submit).
+- Output: Proposals → GitHub Issue (review there). Submissions → logs + committed tracker updates.
 
-## Human Oversight Model (Important)
-
-**Weeks 1-2 (High oversight):**
-- Agent produces daily shortlist + draft submission text
-- Human reviews shortlist (approve/reject/adjust)
-- Human triggers submission (or agent does it in DRY_RUN and human reviews the plan)
-
-**Week 3+ (Lower oversight):**
-- Agent auto-submits anything scoring 85+ that matches known form patterns
-- Human still reviews weekly summary and any low-confidence decisions
-- Human can pause the agent easily (simple flag file)
+**Files Generated/Committed:**
+- `data/daily_report_*.md` (human-readable proposals)
+- `data/shortlist_*.json`
+- `logs/daily_*.log`
+- Updates to `directory-submissions.md` / `backlink-targets.md` (on submit)
 
 ---
 
-## Risks & Mitigations
+## Updated Files & How They Mirror the Code
 
-- **Over-submission / spam signals** → Strict daily limits (max 5-8 submissions/day), strong relevance filter
-- **Site changes breaking forms** → Make submission scripts resilient + log failures clearly for quick fixes
-- **Steel credit usage** → Use cheap `client.scrape()` for research wherever possible; full browser only when needed
-- **Low-quality targets slipping through** → LLM scoring + hard rules from `authority_guidelines.md`
-- **Google penalty risk** → Only pursue relevant, non-spammy targets. Diversify. Monitor GSC.
+- `backlink_automation_plan.md` (this file): Now describes the *as-built* system (GitHub Actions hosting, OpenRouter + Grok, strict human oversight, current file structure, actual behavior vs. aspirational phases).
+- `backlink-strategy.md`: Automation section updated to reference the implemented GitHub agent (instead of future phases or old XAI direct integration).
+- `.env.example`: Matches current required vars (STEEL_API_KEY, OPENROUTER_API_KEY, GH_TOKEN, AGENT_MODE, DRY_RUN, etc.) + notes on repo secrets vs. local.
+- `.gitignore`: Added (protects .env, logs/, data/, temp files, __pycache__, etc.).
+- `requirements.txt`: Added (steel-sdk, python-dotenv, requests) — used by the workflow.
+- Workflow + orchestrator: Already updated for OpenRouter, GH_TOKEN support, Node 24, no cache, import fixes, self-contained LLM prompt (guidelines embedded), etc. (No further doc changes needed beyond this plan.)
 
----
+The "Implementation Phases" section above has been replaced with a description of the **current implemented state**. The agent is production-ready for the propose/review flow with your human oversight. Full auto-submission wiring in the orchestrator submit path and advanced monitoring can be added later if desired.
 
-## Success Metrics for the Agent Itself
+**Next Steps (if you want to continue):**
+- Test a manual "propose" run (Actions tab) → review the resulting Issue.
+- Manually trigger "submit" for approved targets.
+- (Optional) Enhance research (add more roundups or live search), wire real submit calls into orchestrator, add email/Slack notifications for new Issues, etc.
 
-- Number of high-quality (75+ score) targets discovered per week
-- % of shortlist that actually gets submitted and goes live
-- Reduction in manual research/submission time (target: <30 min/day of human time after month 1)
-- Measurable improvement in referring domains from golf/sports tech sites
+The system is now fully mirrored in the docs and ready to run daily on GitHub with the human oversight you specified. Let me know the next piece to tackle! 
 
----
-
-## Hosting the Agent (Where to Run This)
-
-The agent is a Python script that:
-- Calls Steel.dev (cloud browsers)
-- Optionally calls LLM APIs
-- Reads/writes local files (trackers, logs, JSON state)
-- Needs to run on a schedule (daily)
-
-Here are **5 practical hosting options**, ranked roughly from simplest to most "production":
-
-### 1. GitHub Actions (Scheduled Workflows) — Recommended starting point
-- **Pros**: Free for public repos (or 2000 min/month on free private), zero server management, easy secrets (STEEL_API_KEY, etc.), can commit changes back to the repo (perfect for updating your .md trackers), built-in cron scheduling.
-- **Cons**: 6-hour job limit (fine for this), runners are ephemeral (use artifacts or commit for persistence), not ideal for very long-running interactive sessions.
-- **How**: Create `.github/workflows/daily-backlinks.yml` with `on: schedule: - cron: '0 9 * * *'`. Use `actions/checkout`, set up Python, run the orchestrator, and commit any changes.
-- **Best for**: You right now. Low friction, leverages your existing repo.
-
-### 2. Railway.app
-- **Pros**: Very developer-friendly, one-click deploys from Git, built-in cron jobs, persistent volumes, environment variables, easy logging, cheap.
-- **Cons**: Not the absolute cheapest at scale.
-- **How**: Deploy the repo as a "Worker" or use their Cron feature. Mount a volume for the `data/` and `logs/` folders so your .md files persist.
-- **Best for**: Quick production feel without managing servers.
-
-### 3. Render.com (Cron Jobs or Background Worker)
-- **Pros**: Free tier available, excellent Git-based deploys, native cron job support, persistent disks, good Python support.
-- **Cons**: Free web services sleep; use their dedicated cron or worker types.
-- **How**: Create a "Cron Job" service that runs your Python script on a schedule. Use a disk for file persistence.
-- **Best for**: Clean, reliable scheduled execution.
-
-### 4. DigitalOcean Droplet (or Hetzner Cloud / Linode VPS)
-- **Pros**: Full control, very cheap (~$4-6/month for a basic droplet), run real cron, persistent filesystem, can SSH in, easy to install Python + dependencies.
-- **Cons**: You manage the server (updates, security, uptime).
-- **How**: Spin up a small Ubuntu droplet, clone the repo, set up a systemd timer or cron, use `python-dotenv` or env vars for keys. Use `screen`/`tmux` or systemd for reliability.
-- **Best for**: When you want something simple and "always on" with full Linux access.
-
-### 5. AWS Lambda + EventBridge Scheduler (Serverless)
-- **Pros**: Pay only for what you use, highly scalable, no server management, EventBridge gives precise cron scheduling.
-- **Cons**: Cold starts, 15-minute execution limit (usually fine), ephemeral filesystem (use S3, DynamoDB, or EFS for state and your .md files), more complex IAM/secrets setup.
-- **How**: Package the script as a Lambda, trigger via EventBridge rule. Store trackers in S3 (or sync back to Git). Use Lambda layers or container images for dependencies.
-- **Best for**: Long-term cost efficiency and if you already live in AWS.
-
----
-
-## Recommendation for You Right Now
-
-**Start with #1 (GitHub Actions)** for the next 1-2 weeks while you iterate on the agent. It's the fastest way to get daily runs without new accounts or servers.
-
-Once you're happy with the logic and want something more "always-on" with easier local file access, move to **Railway** or **Render** (easiest managed experience) or a cheap **DigitalOcean Droplet** (most control for the price).
-
-Avoid over-engineering with Lambda until the agent is stable and you're sure about execution time and state needs.
-
-The GitHub Actions setup is now ready. Since you have enabled "Allow all actions and reusable workflows", the only remaining pieces on your side are:
-
-1. Make sure the local folder is pushed to the GitHub repo (including `.github/workflows/daily-backlinks.yml` and the `backlink_agent/` folder).
-2. Add the `STEEL_API_KEY` secret (under Settings → Secrets and variables → Actions).
-3. Go to the **Actions** tab, select "Daily Backlink Agent", and manually run it with `mode=propose` to test.
-
-Everything else (daily scheduling + human oversight via Issues) is already configured. The scheduled job will only ever propose — it will never submit without you manually triggering the submit mode after reviewing the Issue.
+(Everything stays in this repo. The agent runs in the background via the scheduled workflow.)

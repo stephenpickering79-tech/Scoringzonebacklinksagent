@@ -95,57 +95,85 @@ def main():
 
         print("Filling form fields...")
 
-        # Company / Product Name
-        try:
-            page.fill('input[name="company"], input[name="name"], input[placeholder*="company" i], input[placeholder*="name" i]', COMPANY_NAME, timeout=5000)
-        except:
-            page.get_by_label("Company").fill(COMPANY_NAME) if page.get_by_label("Company").count() > 0 else None
+        def try_fill(selector: str, value: str, *, timeout: int = 5000) -> bool:
+            """Fill the first matching field; return True only if a value was actually set."""
+            try:
+                page.fill(selector, value, timeout=timeout)
+                return True
+            except Exception:
+                return False
 
-        # Website
-        try:
-            page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]', WEBSITE, timeout=5000)
-        except:
-            pass
+        # Track which fields we managed to fill so we never submit an empty/partial form.
+        filled = {
+            "name": try_fill(
+                'input[name="company"], input[name="name"], input[placeholder*="company" i], input[placeholder*="name" i]',
+                COMPANY_NAME,
+            ),
+            "website": try_fill(
+                'input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]',
+                WEBSITE,
+            ),
+            "email": try_fill(
+                'input[name="email"], input[type="email"], input[placeholder*="email" i]',
+                CONTACT_EMAIL,
+            ),
+        }
 
-        # Short Description (many forms have a "short description" or first textarea)
-        try:
-            page.fill('textarea[name="short_description"], textarea[name="description"], textarea[placeholder*="short" i]', SHORT_DESC[:500], timeout=5000)
-        except:
-            # Fallback to first textarea
+        # Label-based fallback for the name field (some forms have no usable name/placeholder).
+        if not filled["name"]:
+            try:
+                label = page.get_by_label("Company")
+                if label.count() > 0:
+                    label.fill(COMPANY_NAME)
+                    filled["name"] = True
+            except Exception:
+                pass
+
+        # Short Description (specific selector, else first textarea).
+        if not try_fill(
+            'textarea[name="short_description"], textarea[name="description"], textarea[placeholder*="short" i]',
+            SHORT_DESC[:500],
+        ):
             textareas = page.query_selector_all("textarea")
             if textareas:
-                textareas[0].fill(SHORT_DESC[:500])
+                try:
+                    textareas[0].fill(SHORT_DESC[:500])
+                except Exception:
+                    pass
 
-        # Long / Full Description (second textarea or specific field)
-        try:
-            textareas = page.query_selector_all("textarea")
-            if len(textareas) > 1:
+        # Long / Full Description (second textarea or specific field).
+        textareas = page.query_selector_all("textarea")
+        if len(textareas) > 1:
+            try:
                 textareas[1].fill(LONG_DESC[:2000])
-            else:
-                page.fill('textarea[name="long_description"], textarea[name="full_description"], textarea[placeholder*="full" i], textarea[placeholder*="about" i]', LONG_DESC[:2000], timeout=5000)
-        except:
-            pass
+            except Exception:
+                pass
+        else:
+            try_fill(
+                'textarea[name="long_description"], textarea[name="full_description"], textarea[placeholder*="full" i], textarea[placeholder*="about" i]',
+                LONG_DESC[:2000],
+            )
 
-        # Contact / Email
-        try:
-            page.fill('input[name="email"], input[type="email"], input[placeholder*="email" i]', CONTACT_EMAIL, timeout=5000)
-        except:
-            pass
+        # Contact name if separate (optional).
+        try_fill('input[name="contact"], input[name="founder"], input[placeholder*="contact" i]', CONTACT_NAME)
 
-        # Contact name if separate
-        try:
-            page.fill('input[name="contact"], input[name="founder"], input[placeholder*="contact" i]', CONTACT_NAME, timeout=5000)
-        except:
-            pass
+        # Tags / Category if present (optional).
+        try_fill('input[name="tags"], input[name="category"], input[placeholder*="tag" i], input[placeholder*="category" i]', TAGS)
 
-        # Tags / Category if present
-        try:
-            page.fill('input[name="tags"], input[name="category"], input[placeholder*="tag" i], input[placeholder*="category" i]', TAGS, timeout=5000)
-        except:
-            pass
-
-        print("Form fields filled (best effort). Taking screenshot...")
+        print(f"Form fields filled (best effort). Core fields set: {filled}")
         page.screenshot(path="eatsleepgolf_form_filled.png", full_page=True)
+
+        # Guard: never submit if none of the core fields landed — selectors likely don't
+        # match this form, and clicking submit would fire an empty/garbage submission.
+        core_ok = sum(filled.values())
+        if core_ok == 0:
+            print("ABORT: could not fill ANY core field (name/website/email).")
+            print("The form selectors probably don't match. Open the session viewer above,")
+            print("inspect the real field names, and update the selectors. Nothing was submitted.")
+            return
+        if core_ok < len(filled):
+            missing = [k for k, ok in filled.items() if not ok]
+            print(f"WARNING: some core fields were not filled: {missing}. Proceeding, but verify the result screenshot.")
 
         # === Submit ===
         print("Looking for submit button...")
@@ -168,7 +196,7 @@ def main():
                     btn.click()
                     submitted = True
                     break
-            except:
+            except Exception:
                 continue
 
         if not submitted:
@@ -192,7 +220,7 @@ def main():
             if "success" in body_text.lower() or "thank" in body_text.lower() or "listed" in body_text.lower():
                 print("Possible success message detected in page text.")
             print("Page text snippet:", body_text[:300])
-        except:
+        except Exception:
             pass
 
         print("\n=== Submission attempt complete ===")
