@@ -39,7 +39,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -48,8 +47,7 @@ jobs:
       - name: Run Backlink Agent in PROPOSE mode (research + review only)
         env:
           STEEL_API_KEY: ${{ secrets.STEEL_API_KEY }}
-          # Add LLM key if using for scoring later
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}   # For LLM scoring via OpenRouter (Grok, Claude, etc.)
           AGENT_MODE: "propose"
           DRY_RUN: "true"   # Safety: never submit on scheduled/propose runs
         run: |
@@ -98,7 +96,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -107,6 +104,7 @@ jobs:
       - name: Run Backlink Agent in SUBMIT mode (human-approved targets only)
         env:
           STEEL_API_KEY: ${{ secrets.STEEL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}   # Optional - for LLM-assisted submission text if desired
           AGENT_MODE: "submit"
           APPROVED_TARGETS: ${{ github.event.inputs.approved_targets }}
           DRY_RUN: "false"
