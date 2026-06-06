@@ -1,3 +1,6 @@
 steel-sdk
 python-dotenv
 requests
+# Only needed for browser-based submissions (submit_*.py / steel_page).
+# The daily "propose" run does not import it (see steel_utils.py lazy import).
+playwright
