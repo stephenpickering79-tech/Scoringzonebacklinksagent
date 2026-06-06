@@ -40,7 +40,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Use custom GH_TOKEN (PAT with contents:write + issues:write) for full permissions.
+          # Falls back to default GITHUB_TOKEN if GH_TOKEN not set (limited perms).
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -62,7 +64,8 @@ jobs:
 
       - name: Create or update daily proposal Issue
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use custom GH_TOKEN for gh CLI (requires issues:write scope).
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           DATE=$(date +'%Y-%m-%d')
           REPORT_FILE="data/daily_report_${DATE}.md"
@@ -100,7 +103,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Use custom GH_TOKEN (PAT with contents:write + issues:write) for full permissions.
+          # Falls back to default GITHUB_TOKEN if GH_TOKEN not set (limited perms).
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.local
+
+# Runtime data
+logs/
+data/
+*.csv
+*.png
+*.jpg
+*.webp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+untitled folder/

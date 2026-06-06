@@ -38,8 +38,10 @@
 - Optional: Lightweight SQLite for querying later
 
 **LLM Usage:**
-- Use Claude / Grok / local LLM (Ollama) for scoring relevance and writing submission text
-- Keep prompts in `prompts/` folder for easy iteration
+- The review/scoring step can use **Grok** (xAI), Claude (Anthropic), OpenAI, or a local model.
+- We have a dedicated prompt at `backlink_agent/prompts/scoring_prompt.txt` written for this.
+- You can switch models by setting the appropriate API key secret (e.g. `XAI_API_KEY` for Grok).
+- The orchestrator falls back to the simple rule-based scorer if no LLM key is provided or if the call fails.
 
 ---
 
@@ -134,10 +136,11 @@
 - `backlink_agent/prompts/scoring_prompt.txt`
 - `backlink_agent/templates/`
 
-**Environment:**
-- Keep using the same `STEEL_API_KEY`
-- Add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (or run local LLM) for the review agent
-- Use `python-dotenv`
+**Environment / Secrets (GitHub repo + local .env):**
+- STEEL_API_KEY (Steel browser)
+- OPENROUTER_API_KEY (for LLM scoring via Grok or other models on OpenRouter)
+- GH_TOKEN (custom PAT with Contents: Read&write + Issues: Read&write) OR rely on default GITHUB_TOKEN (with workflow permissions set)
+- The .env.example documents all. Copy to .env for local runs (orchestrator loads it automatically).
 
 **Example cron (Mac/Linux):**
 ```bash

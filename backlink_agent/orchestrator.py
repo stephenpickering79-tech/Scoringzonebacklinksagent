@@ -30,10 +30,23 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Import our modules (they live in the same package)
+# Load .env file if present (for local development with keys)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on real env vars
+
+# Import our modules (they live in the same package).
+# Handle both "python -m backlink_agent.orchestrator" (package) and direct script run.
 try:
     from . import research as research_mod
 except ImportError:
+    # Direct script run: add dirs to path for "import research" and "import steel_utils" (from inside research).
+    import sys
+    pkg_dir = Path(__file__).parent
+    sys.path.insert(0, str(pkg_dir))           # for "import research"
+    sys.path.insert(0, str(pkg_dir.parent))    # for "import steel_utils" (sibling to backlink_agent)
     import research as research_mod
 
 BASE_DIR = Path(__file__).parent.parent
@@ -60,6 +73,7 @@ def load_config():
         "min_authority_score": 75,
         "mode": os.getenv("AGENT_MODE", "propose").lower(),
         "approved_targets": os.getenv("APPROVED_TARGETS", "").strip(),
+        "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", "").strip(),
     }
 
 
@@ -125,32 +139,19 @@ def main():
         log(f"Research complete. Found {len(candidates)} raw candidates.")
 
         log("Phase 2: Review & Scoring against authority guidelines...")
-        # Simple rule-based scoring for now (can be replaced by LLM later)
-        scored = []
-        for c in candidates:
-            url = c.get("url", "")
-            source = c.get("source", "")
-            score = 60  # baseline
 
-            # Boost for golf-specific signals (per authority_guidelines.md)
-            if any(kw in url.lower() for kw in ["golf", "eat sleep", "coach", "short game", "putting"]):
-                score += 25
-            if "eatsleepgolf" in url.lower() or "golf" in source.lower():
-                score += 10
+        openrouter_key = config.get("openrouter_api_key")
 
-            # Penalize generic low-value directories
-            if any(bad in url.lower() for bad in ["submit-your-site", "free-directory", "link-farm"]):
-                score -= 30
-
-            scored.append({
-                "name": c.get("name", url.split("/")[-1] if url else "Unknown"),
-                "url": url,
-                "score": max(0, min(100, score)),
-                "topical_relevance": "High" if score > 75 else "Medium",
-                "justification": f"Source: {source}. Matched golf keywords." if score > 70 else "Generic directory.",
-                "recommended_action": "Form submission via Steel" if score > 75 else "Manual review",
-                "source": source,
-            })
+        if openrouter_key:
+            log("Using OpenRouter (Grok via OpenRouter) for scoring...")
+            try:
+                scored = score_candidates_with_openrouter(candidates, openrouter_key, config["min_authority_score"])
+            except Exception as e:
+                log(f"OpenRouter scoring failed ({e}), falling back to rule-based scorer.")
+                scored = score_candidates_rule_based(candidates, config["min_authority_score"])
+        else:
+            log("No OPENROUTER_API_KEY found — using built-in rule-based scorer.")
+            scored = score_candidates_rule_based(candidates, config["min_authority_score"])
 
         # Filter and sort
         scored = [s for s in scored if s["score"] >= config["min_authority_score"]]
@@ -217,6 +218,119 @@ def main():
         log(f"Unknown AGENT_MODE: {mode}. Valid values: propose, submit")
 
     log("=== End of Daily Backlink Agent Run ===")
+
+
+def score_candidates_rule_based(candidates, min_score):
+    """Fallback simple rule-based scoring (golf-niche biased)."""
+    scored = []
+    for c in candidates:
+        url = c.get("url", "")
+        source = c.get("source", "")
+        score = 60
+
+        if any(kw in url.lower() for kw in ["golf", "eat sleep", "coach", "short game", "putting"]):
+            score += 25
+        if "eatsleepgolf" in url.lower() or "golf" in source.lower():
+            score += 10
+        if any(bad in url.lower() for bad in ["submit-your-site", "free-directory", "link-farm"]):
+            score -= 30
+
+        scored.append({
+            "name": c.get("name", url.split("/")[-1] if url else "Unknown"),
+            "url": url,
+            "score": max(0, min(100, score)),
+            "topical_relevance": "High" if score > 75 else "Medium",
+            "justification": f"Source: {source}. Matched golf keywords." if score > 70 else "Generic directory.",
+            "recommended_action": "Form submission via Steel" if score > 75 else "Manual review",
+            "source": source,
+        })
+
+    scored = [s for s in scored if s["score"] >= min_score]
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored
+
+
+def score_candidates_with_openrouter(candidates, api_key, min_score):
+    """Score candidates using OpenRouter (can route to Grok, Claude, etc.)."""
+    import requests
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/stephenpickering79-tech/Scoringzonebacklinksagent",
+        "X-Title": "Scoring Zone Backlink Agent",
+    }
+
+    scored = []
+    prompt_template = open(BASE_DIR / "backlink_agent/prompts/scoring_prompt.txt").read()
+    guidelines = open(BASE_DIR / "authority_guidelines.md").read()
+
+    # You can change the model here. Examples:
+    # "x-ai/grok-3" for Grok (via OpenRouter)
+    # "anthropic/claude-3.5-sonnet" for Claude
+    # "openai/gpt-4o" etc.
+    model = "x-ai/grok-3"   # Using Grok via OpenRouter
+
+    for c in candidates:
+        url_c = c.get("url", "")
+        title = c.get("title") or c.get("source", "")
+        desc = c.get("description") or c.get("source", "") or url_c
+        snippet = c.get("snippet", "")[:500]
+
+        # Make the prompt self-contained by including the guidelines (the template references the .md but the LLM can't read files).
+        prompt = f"""Here are the official Scoring Zone Backlink Authority Guidelines:
+
+{guidelines}
+
+---
+
+Now follow the instructions below and score this candidate.
+
+{prompt_template.format(
+            url=url_c,
+            title=title,
+            description=desc,
+            snippet=snippet
+        )}"""
+
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+            "max_tokens": 700,
+            "response_format": {"type": "json_object"}  # Ask for JSON if the model supports it
+        }
+
+        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+
+        # Try to parse JSON (the prompt asks for pure JSON)
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            # Fallback: try to extract JSON from the response
+            import re
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            data = json.loads(match.group(0)) if match else {}
+
+        score = int(data.get("overall_score", 50))
+        if score >= min_score:
+            scored.append({
+                "name": data.get("name", url_c.split("/")[-1]),
+                "url": url_c,
+                "score": score,
+                "topical_relevance": data.get("topical_relevance_score", "N/A"),
+                "justification": data.get("justification", "Scored via OpenRouter"),
+                "recommended_action": data.get("recommended_action", "Review manually"),
+                "source": c.get("source", ""),
+                "submission_method": data.get("submission_method", ""),
+                "notes": data.get("notes", "")
+            })
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return scored
 
 
 if __name__ == "__main__":
