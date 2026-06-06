@@ -42,9 +42,12 @@ See:
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
 from typing import Generator, Optional
 from urllib.parse import urlencode
 
@@ -75,6 +78,48 @@ def steel_api_key() -> str:
             "Manage keys at https://app.steel.dev"
         )
     return key
+
+
+# ---------------------------------------------------------------------------
+# Session recording (for the dashboard)
+# ---------------------------------------------------------------------------
+
+_SESSIONS_LOG = Path(__file__).parent / "data" / "sessions.jsonl"
+
+
+def record_session(
+    session_id: str,
+    *,
+    viewer_url: str | None = None,
+    target: str | None = None,
+    mode: str | None = None,
+    outcome: str = "started",
+    screenshots: list | None = None,
+) -> None:
+    """Append one JSON line recording a Steel session to data/sessions.jsonl.
+
+    Best-effort: never raises (a logging failure must not break a submission).
+    The dashboard generator (backlink_agent/dashboard.py) reads this file,
+    collapses lines by session_id, and redacts viewer_url / truncates the id
+    before publishing to the public docs/data/sessions.json.
+
+    outcome ∈ {"started", "submitted", "aborted", "error"}.
+    """
+    try:
+        _SESSIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "session_id": session_id,
+            "viewer_url": viewer_url,
+            "target": target,
+            "mode": mode,
+            "timestamp": datetime.now().isoformat(),
+            "screenshots": screenshots or [],
+            "outcome": outcome,
+        }
+        with open(_SESSIONS_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:  # pragma: no cover - logging must never break a run
+        print(f"Warning: could not record session {session_id}: {e}")
 
 
 @contextmanager
@@ -110,6 +155,10 @@ def steel_page(
     if viewer_url:
         print(f"Steel session viewer (open this to watch live): {viewer_url}")
     print(f"Steel session id: {session_id}")
+
+    # Record the session opening so even a crashed/aborted run leaves a trail.
+    # Callers (submit_*.py) enrich this with target/mode/outcome at the end.
+    record_session(session_id, viewer_url=viewer_url, outcome="started")
 
     # Imported here (not at module top) so non-browser flows don't require playwright.
     from playwright.sync_api import sync_playwright

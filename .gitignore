@@ -2,13 +2,21 @@
 .env
 .env.local
 
-# Runtime data
-logs/
-data/
+# Runtime data — anchored to repo root so they do NOT match docs/data/
+# (the dashboard's committed JSON lives in docs/data/).
+/logs/
+/data/
 *.csv
 *.png
 *.jpg
 *.webp
+
+# Dashboard (GitHub Pages, served from /docs on main).
+# docs/ is intentionally TRACKED. The generator (backlink_agent/dashboard.py)
+# writes docs/data/*.json — committed because the runtime ignores above are
+# root-anchored and *.json isn't globbed. The *.png/*.jpg/*.webp globs still
+# apply inside docs/, so screenshots are NOT committed (the Sessions view shows
+# counts + filenames only, never images).
 
 # Python
 __pycache__/
@@ -23,3 +31,6 @@ Thumbs.db
 
 # Temp
 untitled folder/
+
+# Playwright MCP scratch (screenshots/snapshots from local verification)
+.playwright-mcp/

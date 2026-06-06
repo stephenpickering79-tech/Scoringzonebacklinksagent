@@ -55,6 +55,10 @@ jobs:
         run: |
           python3 backlink_agent/orchestrator.py
 
+      - name: Generate dashboard JSON (docs/data)
+        run: |
+          python3 backlink_agent/dashboard.py
+
       - name: Create or update daily proposal Issue
         env:
           # Use custom GH_TOKEN for gh CLI (requires issues:write scope).
@@ -123,6 +127,10 @@ jobs:
           DRY_RUN: "false"
         run: |
           python3 backlink_agent/orchestrator.py
+
+      - name: Generate dashboard JSON (docs/data)
+        run: |
+          python3 backlink_agent/dashboard.py
 
       - name: Commit tracker / log updates after submissions
         run: |
