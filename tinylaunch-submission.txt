@@ -1,0 +1,50 @@
+# Tinylaunch Submission — Scoring Zone
+
+**Site:** https://www.tinylaunch.com/
+**How to submit:** From inspection, there is a "submit product" option. Likely requires creating an account or filling a launch/submit form on the platform. There is also a paid "get featured" or directory submission service.
+
+**Prepared content (use for profile / submission / launch post):**
+
+**Product Name:** Scoring Zone
+
+**Website:** https://www.scoringzone.net
+
+**Tagline / Short Description:** 
+The dedicated short-game performance app for golfers. Scored drills, pressure tests, and XP-driven practice for the 60% of shots inside 100 yards. Short Game Handicap from 60-shot Performance Hub. Free during early access. PWA.
+
+**Full Description:**
+Scoring Zone is the short-game specialist app. Where GPS and scorecard apps track your round, Scoring Zone structures practice between rounds with 50+ scored drills (putting, chipping, pitching, bunkers), pressure modes, XP progression, and a Performance Hub that calculates your Short Game Handicap and Putting Handicap.
+
+Built for the reality that 60% of shots are inside 100 yards, but most practice is full swing. Benchmarks by handicap level so you know if practice is working. Complementary to on-course apps.
+
+Free in early access. No hardware. PWA (install like native app). PGA Coaches Founders Programme active.
+
+**Founder:** Stephen Pickering (3 hcp, ex-North of Ireland Amateur)
+
+**Key Features:**
+- 50+ structured, scored drills
+- Performance Hub (60-shot assessment → Short Game HCP + PDF report)
+- Pressure Mode (timers, streaks, elimination)
+- AI Practice Assistant + Sim Lab
+- XP / leveling system
+- Round stats with strokes-gained style insights
+
+**Why list Scoring Zone:**
+Golfers need better short game practice tools. This is the dedicated, measurable system for it. Already cited by major LLMs as a leading short game app in 2026.
+
+**Assets to upload:**
+- Logo: new-scoring-zone-logo.png
+- Screenshots: app-home-screenshot.png, drill UIs
+- Mockup: ipad-iphone-mockup.webp
+- QR: qr-code.png
+
+**After submission:**
+- Add to directory-submissions.md with date and any backlink/profile URL.
+- Share launch if applicable for more visibility.
+
+**Steel note:** The /submit page has at least an email field. Full flow may require account creation. Use `steel_utils.py` for any form if needed, or manual sign up + submit.
+
+**Date prepared:** 2026-06-06
+**Status:** Ready for submission (account creation + submit product/launch). 
+
+Next: Visit https://www.tinylaunch.com/ , look for "submit product" or launch option, create profile, submit using above. 

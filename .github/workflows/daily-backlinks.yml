@@ -1,0 +1,122 @@
+name: Daily Backlink Agent
+
+on:
+  schedule:
+    # Run every day at 09:00 UTC (adjust as needed, e.g. '0 9 * * *' for 9am UTC)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode (propose = research+review only for human review; submit = execute approved submissions)'
+        required: true
+        default: 'propose'
+        type: choice
+        options:
+          - propose
+          - submit
+      approved_targets:
+        description: 'Comma-separated list of target names/IDs to submit (only used when mode=submit). Leave empty for propose.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  propose:
+    # This job runs on schedule (propose only) or when manually triggered with mode=propose
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'propose')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt || pip install steel-sdk python-dotenv requests
+
+      - name: Run Backlink Agent in PROPOSE mode (research + review only)
+        env:
+          STEEL_API_KEY: ${{ secrets.STEEL_API_KEY }}
+          # Add LLM key if using for scoring later
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AGENT_MODE: "propose"
+          DRY_RUN: "true"   # Safety: never submit on scheduled/propose runs
+        run: |
+          python3 backlink_agent/orchestrator.py
+
+      - name: Create or update daily proposal Issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          REPORT_FILE="data/daily_report_${DATE}.md"
+          
+          if [ -f "$REPORT_FILE" ]; then
+            # Create a new issue with the report
+            gh issue create \
+              --title "Backlink Proposals - ${DATE} (Human Review Required)" \
+              --body-file "$REPORT_FILE" \
+              --label "backlink-proposal" \
+              || echo "Issue may already exist or creation failed (non-fatal)"
+          else
+            echo "No report file generated; skipping issue creation."
+          fi
+
+      - name: Commit any generated data / logs / shortlists
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: daily backlink PROPOSE run [$(date +'%Y-%m-%d')]" || echo "No changes to commit"
+          git push || echo "Push may have failed (non-fatal for propose run)"
+
+  submit:
+    # This job only runs on manual trigger with mode=submit
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'submit'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt || pip install steel-sdk python-dotenv requests
+
+      - name: Run Backlink Agent in SUBMIT mode (human-approved targets only)
+        env:
+          STEEL_API_KEY: ${{ secrets.STEEL_API_KEY }}
+          AGENT_MODE: "submit"
+          APPROVED_TARGETS: ${{ github.event.inputs.approved_targets }}
+          DRY_RUN: "false"
+        run: |
+          python3 backlink_agent/orchestrator.py
+
+      - name: Commit tracker / log updates after submissions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: backlink SUBMIT run for approved targets [$(date +'%Y-%m-%d')]" || echo "No changes to commit"
+          git push || echo "Push may have failed (non-fatal)"

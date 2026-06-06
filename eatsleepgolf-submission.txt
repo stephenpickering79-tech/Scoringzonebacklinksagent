@@ -1,0 +1,68 @@
+# Eat Sleep Golf Directory — Ready Submission Text
+# Form at: https://www.eatsleepgolf.net/get-listed
+# Process: Fill form (company info), optional $5-20 donation to their charities (Caddy for a Cure / Cure Alzheimer's Fund). Listing added in 7-10 business days, permanent.
+
+## Company / Product Name
+Scoring Zone
+
+## Website
+https://www.scoringzone.net
+
+## Short Description (use or adapt)
+Scoring Zone is the dedicated short-game performance app for golfers. Scored drills, pressure tests, and XP-driven practice for putting, chipping, pitching and bunker play — the 60% of shots that happen inside 100 yards. Calculates a Short Game Handicap and Putting Handicap from a 60-shot Performance Hub assessment. Free during early access. PWA — install to your phone like a native app. No hardware or sensors required.
+
+Built for the gap most golfers ignore: structured, measurable practice between rounds. Benchmarks against your handicap level so you know if your practice is actually working. Pressure modes simulate on-course consequence. Complementary to GPS and scorecard apps.
+
+## Long / Full Description (paste into any "about" or "details" field)
+Scoring Zone turns short game practice into a scored, gamified system with real feedback.
+
+**Key Features:**
+- 50+ structured drills across putting, chipping, pitching, bunkers and distance wedges
+- Performance Hub: one 60-shot session gives you a Short Game Handicap + Putting Handicap plus a PDF report showing exactly where you're losing strokes
+- Pressure Mode with timers, streaks and elimination to simulate tournament conditions
+- XP and progression — drills unlock as you level up; beat your handicap benchmark for 2x/3x XP
+- AI Practice Assistant with guided sessions, clock-system wedge calculator, practice notepad and pre-round warm-ups
+- Sim Lab for indoor simulator users
+- Round stats logging with strokes-gained style insights benchmarked to your level
+
+**Why it exists:**
+Around 60% of golf shots happen inside 100 yards. Most amateurs spend 80%+ of practice time on full swing. Scoring Zone forces focus on the scoring shots with objective scoring and benchmarks. Your Short Game Handicap drops as you improve — the fastest feedback loop most golfers have ever had for their short game.
+
+Currently free in early access (no credit card). App Store and Google Play launches planned once the user base is established. PGA Coaches Founders Programme running for pros who want early access, shape the product, and earn lifetime 50% commission on referred students.
+
+**Founder:** Stephen Pickering, 3-handicap from Northern Ireland (ex-North of Ireland Amateur competitor), based in Dubai. Built solo.
+
+**Website:** www.scoringzone.net
+**Get the app:** Scan the QR on the homepage or visit scoringzone.app (PWA)
+
+## Category / Tags (if the form asks)
+Golf App | Short Game Training | Putting Practice | Golf Practice Tools | Golf Improvement App | Pressure Training
+
+## Contact / Founder Info
+Stephen Pickering
+stephenpickering79@gmail.com
+www.scoringzone.net
+
+## Optional Extras to Mention
+- Already cited by Gemini, ChatGPT, Claude and Grok as a leading short-game app in 2026
+- 50+ PGA teaching pros in the US in the Founders Programme
+- Clean "Whoop-style" premium UI designed for serious golfers
+- Free public Handicap Calculator tool on site (WHS/GHIN compliant)
+
+## Suggested Donation Note (if paying)
+Happy to support the charitable partners with a small donation.
+
+---
+
+## Visuals to Attach / Upload (from this folder)
+- new-scoring-zone-logo.png
+- app-home-screenshot.png (Elite home screen)
+- ipad-iphone-mockup.webp (device mockup)
+- One or two drill UI shots (e.g. drill-ui-lag-king.jpg, drill-ui-putting-drills.jpg)
+- qr-code.png
+
+## After Submission
+- Note date in directory-submissions.md
+- Once live: add the exact listing URL + any badge/featured status
+- Add UTM to the scoringzone.net link if the directory allows custom URLs: https://www.scoringzone.net/?utm_source=eatsleepgolf&utm_medium=referral&utm_campaign=backlinks
+- Check GSC URL Inspection for the new backlink
