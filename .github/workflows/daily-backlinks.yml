@@ -1,9 +1,12 @@
 name: Daily Backlink Agent
 
 on:
-  schedule:
-    # Run every day at 09:00 UTC (adjust as needed, e.g. '0 9 * * *' for 9am UTC)
-    - cron: '0 9 * * *'
+  # NOTE: the daily schedule is DISABLED — hosting moved to Railway, which now runs the
+  # propose job on its own daily timer (see serve.py + DEPLOY_RAILWAY.md). Re-enable this
+  # cron only if you move scheduling back to GitHub Actions. workflow_dispatch is kept as a
+  # manual backup (Actions tab → Run workflow).
+  # schedule:
+  #   - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       mode:
