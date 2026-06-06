@@ -1,4 +1,4 @@
-/* Variant B — Console render logic + nav + sortable submissions table. */
+/* Scoring Zone backlink dashboard — render logic + nav + sortable submissions table. */
 (function () {
   const $ = (id) => document.getElementById(id);
   let DATA = null;
@@ -8,7 +8,7 @@
     submissions: ["Submissions", "Directory backlinks"],
   };
 
-  BL.loadAll("../data/").then((data) => {
+  BL.loadAll("data/").then((data) => {
     DATA = data;
     renderKpis(data);
     renderProposals(data);
