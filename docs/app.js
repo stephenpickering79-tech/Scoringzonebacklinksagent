@@ -94,12 +94,22 @@
     $("runs").innerHTML = trend + `<div class="runs-list">${rows}</div>`;
   }
 
+  // Linkify a session target only when it's an actual URL (submit runs); research targets are
+  // plain descriptions ("Daily research — …") and must render as text, not a broken link.
+  function sessionTarget(target) {
+    if (!target) return "—";
+    if (/^https?:\/\//i.test(target)) {
+      return `<a href="${BL.escapeHtml(target)}" target="_blank" rel="noopener">${BL.escapeHtml(BL.host(target))}</a>`;
+    }
+    return BL.escapeHtml(target);
+  }
+
   function renderSessions(data) {
     const s = data.sessions || [];
     if (!s.length) { $("sessions").innerHTML = `<div class="empty">No Steel sessions recorded yet</div>`; return; }
     const rows = s.map((x, i) => `<tr class="reveal" style="animation-delay:${i * 0.025}s">
       <td class="cell-date">${BL.fmtDateTime(x.timestamp)}</td>
-      <td>${x.target ? `<a href="${BL.escapeHtml(x.target)}" target="_blank" rel="noopener">${BL.escapeHtml(BL.host(x.target))}</a>` : "—"}</td>
+      <td>${sessionTarget(x.target)}</td>
       <td class="mono" style="font-size:12px;color:var(--muted)">${BL.escapeHtml(x.mode || "")}</td>
       <td><span class="badge ${BL.statusClass(x.outcome)}">${BL.escapeHtml(x.outcome)}</span></td>
       <td class="num">${x.screenshot_count || 0}</td>

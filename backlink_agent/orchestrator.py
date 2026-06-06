@@ -136,29 +136,49 @@ def main():
             log(f"Research failed: {e}")
             candidates = []
 
-        log(f"Research complete. Found {len(candidates)} raw candidates.")
+        # Split: pre-vetted targets from the user's own list vs. newly discovered ones.
+        seeded = [c for c in candidates if c.get("preapproved")]
+        new_candidates = [c for c in candidates if not c.get("preapproved")]
+        log(f"Research complete. {len(candidates)} candidates "
+            f"({len(seeded)} from your list, {len(new_candidates)} newly discovered).")
 
         log("Phase 2: Review & Scoring against authority guidelines...")
 
-        openrouter_key = config.get("openrouter_api_key")
+        # Curated targets are already vetted by the user — include them directly (no score cutoff).
+        scored_seeded = score_seeded_targets(seeded)
 
-        if openrouter_key:
-            log("Using OpenRouter (Grok via OpenRouter) for scoring...")
+        # New discoveries go through the scorer + the authority threshold.
+        openrouter_key = config.get("openrouter_api_key")
+        if openrouter_key and new_candidates:
+            log("Using OpenRouter (Grok via OpenRouter) to score new discoveries...")
             try:
-                scored = score_candidates_with_openrouter(candidates, openrouter_key, config["min_authority_score"])
+                scored_new = score_candidates_with_openrouter(new_candidates, openrouter_key, config["min_authority_score"])
             except Exception as e:
                 log(f"OpenRouter scoring failed ({e}), falling back to rule-based scorer.")
-                scored = score_candidates_rule_based(candidates, config["min_authority_score"])
+                scored_new = score_candidates_rule_based(new_candidates, config["min_authority_score"])
         else:
-            log("No OPENROUTER_API_KEY found — using built-in rule-based scorer.")
-            scored = score_candidates_rule_based(candidates, config["min_authority_score"])
+            if new_candidates:
+                log("No OPENROUTER_API_KEY found — using built-in rule-based scorer for discoveries.")
+            scored_new = score_candidates_rule_based(new_candidates, config["min_authority_score"])
 
-        # Filter and sort
-        scored = [s for s in scored if s["score"] >= config["min_authority_score"]]
-        scored.sort(key=lambda x: x["score"], reverse=True)
-        scored = scored[: config["max_submissions_per_day"] * 2]  # give human some choices
+        scored_new = [s for s in scored_new if s["score"] >= config["min_authority_score"]]
+        scored_new.sort(key=lambda x: x["score"], reverse=True)
+        scored_new = scored_new[: config["max_candidates_per_day"]]  # keep the list sane
 
-        log(f"Review complete. {len(scored)} targets passed the authority threshold.")
+        # Curated targets first (already sorted by seed score), then qualifying discoveries.
+        scored = scored_seeded + scored_new
+
+        # Hard floor: a curated, on-disk seed means this should be impossible — but never write
+        # an empty list. If it ever happens, log loudly and fall back to every curated target.
+        if not scored:
+            log("WARNING: shortlist is empty after seeding+scoring — falling back to full curated list.")
+            try:
+                scored = score_seeded_targets(research_mod.all_tracker_targets())
+            except Exception as e:
+                log(f"Hard-floor fallback failed: {e}")
+
+        log(f"Review complete. {len(scored)} targets on the shortlist "
+            f"({len(scored_seeded)} curated, {len(scored_new)} new).")
 
         # Save shortlist for reference
         shortlist_path = DATA_DIR / f"shortlist_{datetime.now().strftime('%Y-%m-%d')}.json"
@@ -179,6 +199,8 @@ def main():
             "date": date_str,
             "mode": "propose",
             "candidates_found": len(candidates),
+            "seeded": len(seeded),
+            "discovered": len(new_candidates),
             "shortlist_size": len(scored),
             "report_file": str(report_path),
             "shortlist_file": str(shortlist_path),
@@ -218,6 +240,39 @@ def main():
         log(f"Unknown AGENT_MODE: {mode}. Valid values: propose, submit")
 
     log("=== End of Daily Backlink Agent Run ===")
+
+
+def _action_from_status(status):
+    s = (status or "").lower()
+    if not s or "not submitted" in s or "ready" in s or "prepared" in s:
+        return "Submit"
+    if "submitted" in s or "pending" in s or "applied" in s or "progress" in s:
+        return "Awaiting / verify"
+    return "Review"
+
+
+def score_seeded_targets(seeded):
+    """Convert pre-vetted curated targets into shortlist entries directly (no score cutoff).
+
+    These come from the user's own list, so they are always included — the rule-based scorer's
+    golf-keyword heuristic must not drop them. Ordered by their seed score (priority).
+    """
+    out = []
+    for c in seeded:
+        status = (c.get("status") or "").strip()
+        out.append({
+            "name": c.get("name") or c.get("url", "") or "Unknown",
+            "url": c.get("url", ""),
+            "score": int(c.get("seed_score", 85)),
+            "topical_relevance": "High",
+            "justification": (c.get("notes") or "From your curated target list.")[:200].replace("\n", " "),
+            "recommended_action": _action_from_status(status),
+            "source": c.get("source", "Your target list"),
+            "submission_method": "",
+            "notes": status,
+        })
+    out.sort(key=lambda x: x["score"], reverse=True)
+    return out
 
 
 def score_candidates_rule_based(candidates, min_score):
