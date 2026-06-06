@@ -29,6 +29,8 @@ service fits inside Railway's included $5 usage).
 4. **Add your keys (Variables):**
    - Open the service → **Variables** → add:
      - `STEEL_API_KEY` = your Steel key (required for research/submissions)
+     - `SERPER_API_KEY` = your serper.dev key *(enables web-search discovery of NEW directories;
+       without it the agent still runs on your curated list + roundup scrape)*
      - `OPENROUTER_API_KEY` = your OpenRouter key *(optional — better scoring; skip to use the
        built-in scorer)*
      - `RUN_ON_START` = `true` *(optional, just for the first deploy — runs one job immediately
