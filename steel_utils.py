@@ -49,8 +49,13 @@ from typing import Generator, Optional
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
-from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 from steel import Steel
+
+# NOTE: playwright is imported lazily inside steel_page() (the only place that
+# launches a browser). This keeps research / cheap_scrape (used by the daily
+# "propose" run) working with just steel-sdk installed — no playwright needed.
+# Type names in annotations below are strings thanks to `from __future__ import
+# annotations`, so they are never evaluated at import time.
 
 load_dotenv()
 
@@ -106,8 +111,11 @@ def steel_page(
         print(f"Steel session viewer (open this to watch live): {viewer_url}")
     print(f"Steel session id: {session_id}")
 
-    playwright: Optional[Playwright] = None
-    browser: Optional[Browser] = None
+    # Imported here (not at module top) so non-browser flows don't require playwright.
+    from playwright.sync_api import sync_playwright
+
+    playwright: Optional["Playwright"] = None
+    browser: Optional["Browser"] = None
 
     try:
         api_key = steel_api_key()
