@@ -1,4 +1,115 @@
 {
-  "date": null,
-  "items": []
+  "date": "2026-06-06",
+  "items": [
+    {
+      "name": "Eat Sleep Golf - Get Listed",
+      "url": "https://www.eatsleepgolf.net/get-listed",
+      "score": 96,
+      "topical_relevance": "High",
+      "justification": "Highest topical relevance. Form + optional $5-20 charity donation. Permanent listing in 7-10 days. Use text from `eatsleepgolf-submission.txt` + logo + app screenshot + mockup + drill UIs + QR.",
+      "recommended_action": "Submit",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Not submitted"
+    },
+    {
+      "name": "Tinylaunch",
+      "url": "https://www.tinylaunch.com/ (submit product)",
+      "score": 92,
+      "topical_relevance": "High",
+      "justification": "Free app launch platform. Form filled and submitted using prepared content and `submit_tinylaunch.py`. Screenshots in folder. Check for account/confirmation steps.",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Submitted 2026-06-06 (via Steel)"
+    },
+    {
+      "name": "Indie Hackers",
+      "url": "https://www.indiehackers.com/ (launch post / profile)",
+      "score": 90,
+      "topical_relevance": "High",
+      "justification": "Stephen already verified. Polished ready-to-post draft in `indie-hackers-launch-draft.md`. Post for profile backlink + visibility/traffic. Update this tracker with date + any backlink URL after postin",
+      "recommended_action": "Submit",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Prepared — ready to post manually"
+    },
+    {
+      "name": "Reddit value seeding (r/golftips, r/GolfFriends, r/golf)",
+      "url": "Various threads",
+      "score": 88,
+      "topical_relevance": "High",
+      "justification": "Value-first posts (drills, benchmarks, \"free short game system\"). Can earn natural links + direct signups. Follow existing `golf-subreddits.md`.",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "In progress (per playbook)"
+    },
+    {
+      "name": "Other pending from original queue",
+      "url": "See Live/Submitted table above for F6S, BetaList, etc.",
+      "score": 86,
+      "topical_relevance": "High",
+      "justification": "Re-check and complete any easy remaining (e.g. Tiny Startups, re-verify F6S).",
+      "recommended_action": "Review",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Various"
+    },
+    {
+      "name": "Product Hunt",
+      "url": "",
+      "score": 85,
+      "topical_relevance": "High",
+      "justification": "Direct submit by Stephen",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Submitted"
+    },
+    {
+      "name": "AppSumo",
+      "url": "",
+      "score": 85,
+      "topical_relevance": "High",
+      "justification": "Launch application submitted",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Applied"
+    },
+    {
+      "name": "Bright Data",
+      "url": "",
+      "score": 85,
+      "topical_relevance": "High",
+      "justification": "—",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Submitted"
+    },
+    {
+      "name": "Tiny Startups",
+      "url": "",
+      "score": 85,
+      "topical_relevance": "High",
+      "justification": "Free",
+      "recommended_action": "Awaiting / verify",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Submitted"
+    },
+    {
+      "name": "Eat Sleep Golf - Flyover Directory",
+      "url": "",
+      "score": 85,
+      "topical_relevance": "High",
+      "justification": "Secondary",
+      "recommended_action": "Submit",
+      "source": "Your target list",
+      "submission_method": "",
+      "notes": "Not submitted"
+    }
+  ]
 }
