@@ -8,7 +8,9 @@ For each candidate URL provided, output a JSON object with:
 - topical_relevance_score (0-100)
 - domain_quality_score (0-100)
 - traffic_potential_score (0-100)
-- justification (1-2 sentences)
+- justification — ONE short, SPECIFIC reason (max ~90 characters) why THIS site fits Scoring Zone.
+  Name the concrete signal (e.g. "golf coach audience", "DR 70, dofollow", "editorial review",
+  "sports-tech listing"). No boilerplate — never write "this is a highly relevant niche directory".
 - recommended_action (e.g. "High priority form submission", "Profile post", "Skip - low relevance", "Manual outreach needed")
 - submission_method (form / profile / email / other / none)
 - spam_risk ("low" | "medium" | "high") — how likely this is a low-quality/spammy link that could
