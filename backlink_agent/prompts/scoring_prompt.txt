@@ -11,9 +11,18 @@ For each candidate URL provided, output a JSON object with:
 - justification (1-2 sentences)
 - recommended_action (e.g. "High priority form submission", "Profile post", "Skip - low relevance", "Manual outreach needed")
 - submission_method (form / profile / email / other / none)
+- spam_risk ("low" | "medium" | "high") — how likely this is a low-quality/spammy link that could
+  HARM the site per Google's link spam policy. Mark "high" for link farms, "submit to 500 directories"
+  pages, generic business directories with instant approval / 100+ outbound links / no editorial
+  review, or anything auto-generated. Mark "low" only for reputable, relevant, editorially reviewed
+  directories or genuine niche/resource pages.
+- quality_tier ("Tier 1 niche" | "Tier 2 quality general" | "Tier 3 filler" | "Avoid") — Tier 1 =
+  golf/sports-tech directory or roundup; Tier 2 = reputable general SaaS/startup/maker directory with
+  editorial standards (Crunchbase/Product Hunt/BetaList class); Tier 3 = acceptable low-authority
+  filler; Avoid = spammy/irrelevant/link-farm.
 - notes (any red flags, required assets, or special instructions)
 
-Be ruthless about relevance to golf, sports tech, coaches, or serious makers. Generic directories score low unless they have exceptional authority and dofollow links.
+Be ruthless about relevance to golf, sports tech, coaches, or serious makers. Generic directories score low unless they have exceptional authority and dofollow links. A high spam_risk target should score low even if topically relevant — a penalty risk is never worth it.
 
 Only recommend targets that would meaningfully help authority or drive golfer/maker traffic and signups.
 

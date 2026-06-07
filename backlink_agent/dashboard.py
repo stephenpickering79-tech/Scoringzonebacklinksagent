@@ -245,6 +245,8 @@ def build_proposals() -> dict:
             "recommended_action": c.get("recommended_action", ""),
             "source": c.get("source", ""),
             "submission_method": c.get("submission_method", ""),
+            "spam_risk": c.get("spam_risk", ""),
+            "quality_tier": c.get("quality_tier", ""),
             "notes": c.get("notes", ""),
         })
     return {"date": date, "items": items}
