@@ -22,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page
+from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
 from submission_profile import (
     COMPANY_NAME, CONTACT_EMAIL, CONTACT_NAME, LONG_DESC, SHORT_DESC, TAGS, WEBSITE,
 )
@@ -61,6 +61,7 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
 
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         time.sleep(3)  # let dynamic content / anti-bot settle
+        wait_for_captchas(client, sid)  # let Steel solve any load-time CAPTCHA before we fill
 
         before = Path(f"generic_{slug}_before.png")
         try:
@@ -145,6 +146,7 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
             except Exception:
                 continue
 
+        wait_for_captchas(client, sid)  # solve any CAPTCHA the submit triggered
         time.sleep(5)
         try:
             page.wait_for_load_state("domcontentloaded", timeout=30000)

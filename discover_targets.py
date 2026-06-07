@@ -42,16 +42,15 @@ ROUNDUP_URLS = [
     "https://www.eatsleepgolf.net/directory",
     "https://www.eatsleepgolf.net/get-listed",
     # More golf "best apps" / improvement roundups (each may link out to other directories/tools).
-    "https://mygolfheaven.com/best-golf-apps/",
     "https://www.golfspan.com/best-golf-apps",
     "https://thegolfmine.com/best-golf-apps/",
     "https://www.thegrint.com/golf-apps/",
     "https://golf.com/instruction/best-golf-apps/",
     "https://www.skytrakgolf.com/blogs/news/best-golf-apps",
     # Sports / fitness app directories that accept submissions.
-    "https://www.sportstechx.com/",
     "https://golfbusinessmonitor.com/",
-    # Add any "golf directory", "golf resources", "submit golf app", "best putting apps", "short game training" pages here.
+    # NOTE: sportstechx.com and mygolfheaven.com were removed — they consistently 500 on the Steel
+    # scrape. Re-add only if they become scrapeable. Add new golf/resource pages below.
 ]
 
 # Simple heuristics for things that look like directories, submission pages, or contact opportunities

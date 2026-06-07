@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page
+from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
 
 # Dashboard session metadata
 MODE = "submit_tinylaunch"
@@ -109,6 +109,7 @@ def submit() -> str:
             page.goto("https://www.tinylaunch.com/submit", wait_until="domcontentloaded", timeout=30000)
 
         time.sleep(3)
+        wait_for_captchas(client, sid)  # let Steel solve any load-time CAPTCHA
         print(f"On submit page. Title: {page.title()}")
 
         page.screenshot(path="tinylaunch_submit_page.png", full_page=True)
@@ -202,6 +203,7 @@ def submit() -> str:
         if not submitted:
             print("No auto-submit button found. You may need to click in the session viewer.")
 
+        wait_for_captchas(client, sid)  # solve any CAPTCHA the submit triggered
         time.sleep(5)
         page.wait_for_load_state("domcontentloaded", timeout=30000)
 
