@@ -2,6 +2,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let DATA = null;
+  // Approve token: load the dashboard as …/?k=YOURTOKEN and it's sent with submissions.
+  const APPROVE_TOKEN = new URLSearchParams(location.search).get("k") || "";
   const TITLES = {
     output: ["Output", "Latest proposals"],
     approved: ["Approved", "Approved — to submit"],
@@ -155,7 +157,7 @@
     btn.textContent = "Approving…";
     fetch("api/approve", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Approve-Token": APPROVE_TOKEN },
       body: JSON.stringify({ name, url }),
     })
       .then((res) => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })

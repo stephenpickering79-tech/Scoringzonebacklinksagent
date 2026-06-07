@@ -39,6 +39,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = Path(__file__).parent
 DOCS_DIR = BASE_DIR / "docs"
@@ -61,7 +62,9 @@ def _autosubmit_enabled() -> bool:
 
 
 def _autosubmit_dry_run() -> bool:
-    return os.getenv("AUTO_SUBMIT_DRY_RUN", "").strip().lower() in ("1", "true", "yes")
+    # Safe default: dry-run ON unless explicitly disabled. A real submission requires
+    # setting AUTO_SUBMIT_DRY_RUN=false, so a fresh deploy never posts by accident.
+    return os.getenv("AUTO_SUBMIT_DRY_RUN", "true").strip().lower() not in ("0", "false", "no")
 
 
 def _approval_pending(name: str, url: str) -> bool:
@@ -131,11 +134,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _token_ok(self) -> bool:
+        """When APPROVE_TOKEN is set, require it (header X-Approve-Token or ?k=). When
+        unset, allow (back-compat) but warn — a public page can't hold a true secret, so
+        this just blocks drive-by/bot hits; the allowlist + velocity cap bound the rest."""
+        want = os.getenv("APPROVE_TOKEN", "").strip()
+        if not want:
+            log("WARNING: APPROVE_TOKEN not set — /api/approve is unauthenticated.")
+            return True
+        got = (self.headers.get("X-Approve-Token") or "").strip()
+        if not got:
+            got = parse_qs(urlparse(self.path).query).get("k", [""])[0].strip()
+        return got == want
+
     def do_POST(self) -> None:  # noqa: N802 (http.server naming)
-        if self.path == "/api/approve":
-            self._handle_approve()
-        elif self.path == "/api/dismiss":
-            self._handle_dismiss()
+        route = urlparse(self.path).path  # ignore query string (?k=token)
+        if route in ("/api/approve", "/api/dismiss"):
+            if not self._token_ok():
+                self._send_json(401, {"ok": False, "error": "unauthorized"})
+                return
+            self._handle_approve() if route == "/api/approve" else self._handle_dismiss()
         else:
             self._send_json(404, {"ok": False, "error": "unknown endpoint"})
 
