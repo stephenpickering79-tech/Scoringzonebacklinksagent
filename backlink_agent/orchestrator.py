@@ -440,6 +440,16 @@ def score_candidates_rule_based(candidates, min_score):
     return scored
 
 
+def _readable_host(url: str) -> str:
+    """A human-friendly host label for a URL (netloc minus www), for when no name is available."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url if "://" in url else f"https://{url}").netloc.lower()
+        return host[4:] if host.startswith("www.") else host
+    except Exception:
+        return ""
+
+
 def score_candidates_with_openrouter(candidates, api_key, min_score):
     """Score candidates using OpenRouter (can route to Grok, Claude, etc.)."""
     import requests
@@ -507,7 +517,8 @@ Now follow the instructions below and score this candidate.
         score = int(data.get("overall_score", 50))
         if score >= min_score:
             scored.append({
-                "name": data.get("name", url_c.split("/")[-1]),
+                # Never blank: prefer LLM name, else the research-supplied name, else a readable host.
+                "name": (data.get("name") or c.get("name") or _readable_host(url_c) or url_c).strip(),
                 "url": url_c,
                 "score": score,
                 "topical_relevance": data.get("topical_relevance_score", "N/A"),

@@ -81,14 +81,18 @@
     }
     const idx = approvalIndex(data);
     const rows = items.map((it, i) => {
-      const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(it.name)}</a>` : BL.escapeHtml(it.name);
+      // Never a nameless link: fall back to the host when the name is blank.
+      const label = (it.name && it.name.trim()) ? it.name : BL.host(it.url) || it.url || "—";
+      const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(label)}</a>` : BL.escapeHtml(label);
       const existing = idx[approvalKey(it.name, it.url)];
+      const why = BL.cleanMd(it.justification);
+      const whyShort = why.length > 90 ? why.slice(0, 90).trimEnd() + "…" : why;
       return `<tr class="reveal" style="animation-delay:${i * 0.025}s">
         <td class="num" style="color:var(--faint)">${i + 1}</td>
         <td class="t-name">${t}<span class="sub">${BL.escapeHtml(it.recommended_action || "")}</span></td>
         <td class="num">${BL.escapeHtml(it.score)}</td>
         <td>${BL.escapeHtml(it.topical_relevance || "—")}</td>
-        <td class="cell-why">${BL.escapeHtml(BL.cleanMd(it.justification))}</td>
+        <td class="cell-why" title="${BL.escapeHtml(why)}">${BL.escapeHtml(whyShort)}</td>
         <td>${qualityCell(it)}</td>
         <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
