@@ -57,11 +57,21 @@ MAX_POST_BYTES = 64_000  # approve/dismiss payloads are tiny; reject anything la
 
 
 def _autosubmit_enabled() -> bool:
-    return os.getenv("AUTO_SUBMIT_ENABLED", "").lower() in ("1", "true", "yes")
+    return os.getenv("AUTO_SUBMIT_ENABLED", "").strip().lower() in ("1", "true", "yes")
 
 
 def _autosubmit_dry_run() -> bool:
-    return os.getenv("AUTO_SUBMIT_DRY_RUN", "").lower() in ("1", "true", "yes")
+    return os.getenv("AUTO_SUBMIT_DRY_RUN", "").strip().lower() in ("1", "true", "yes")
+
+
+def _approval_pending(name: str, url: str) -> bool:
+    """True if this target is queued and still awaiting submission (status 'approved'),
+    so we don't double-fire one already submitting/submitted."""
+    key = approvals._key(name, url)
+    for a in approvals.load_approvals():
+        if approvals._key(a.get("name", ""), a.get("url", "")) == key:
+            return a.get("status") == "approved"
+    return False
 
 RUN_HOUR = int(os.getenv("RUN_HOUR", "9"))
 PORT = int(os.getenv("PORT", "8080"))
@@ -146,9 +156,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # If auto-submit is enabled, the agent acts on this approval immediately in a
         # background thread (scripted site → its script; otherwise the generic submitter).
-        # The Approved tab shows "Submitting…" then the final status via live refresh.
+        # Triggers whenever the item is still "approved" (newly added OR previously queued
+        # but never submitted) — so re-clicking Approve kicks a stuck item. The Approved tab
+        # shows "Submitting…" then the final status via live refresh.
         submitting = False
-        if added and _autosubmit_enabled():
+        if _autosubmit_enabled() and _approval_pending(name, url):
             dry = _autosubmit_dry_run()
             log(f"auto-submit: starting background submission for {name or url} (dry={dry})")
             threading.Thread(
@@ -159,6 +171,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 daemon=True,
             ).start()
             submitting = True
+        elif not _autosubmit_enabled():
+            log("auto-submit: AUTO_SUBMIT_ENABLED not set — approval queued only (not submitting).")
 
         log(f"approve: {name or url} (new={added}, submitting={submitting})")
         self._send_json(200, {"ok": True, "added": added, "name": name or url, "submitting": submitting})
@@ -241,6 +255,9 @@ def main() -> None:
     if os.getenv("RUN_ON_START", "").lower() in ("1", "true", "yes"):
         log("RUN_ON_START set — kicking off one propose cycle in the background.")
         threading.Thread(target=run_propose_cycle, name="propose-on-start", daemon=True).start()
+
+    log(f"auto-submit on Approve: {'ENABLED' if _autosubmit_enabled() else 'disabled'} "
+        f"(AUTO_SUBMIT_ENABLED={os.getenv('AUTO_SUBMIT_ENABLED', '')!r}, dry_run={_autosubmit_dry_run()})")
 
     threading.Thread(target=scheduler_loop, name="scheduler", daemon=True).start()
 
