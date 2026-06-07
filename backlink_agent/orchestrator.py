@@ -83,11 +83,11 @@ def load_config():
         # Dashboard "Approve" queue → auto-submit controls (see process_approvals).
         # Master switch — OFF by default so nothing is ever auto-submitted until Stephen
         # deliberately turns it on in Railway. While off, approvals just queue for manual action.
-        "auto_submit_enabled": os.getenv("AUTO_SUBMIT_ENABLED", "false").lower() in ("1", "true", "yes"),
+        "auto_submit_enabled": os.getenv("AUTO_SUBMIT_ENABLED", "false").strip().lower() in ("1", "true", "yes"),
         # Go-live date (YYYY-MM-DD). If unset, defaults to launch_date + 7 days (the manual phase).
         "auto_submit_after": os.getenv("AUTO_SUBMIT_AFTER", "").strip(),
         # Testing override: in the auto phase, log intended submits instead of running them.
-        "auto_submit_dry_run": os.getenv("AUTO_SUBMIT_DRY_RUN", "false").lower() in ("1", "true", "yes"),
+        "auto_submit_dry_run": os.getenv("AUTO_SUBMIT_DRY_RUN", "false").strip().lower() in ("1", "true", "yes"),
     }
 
 
