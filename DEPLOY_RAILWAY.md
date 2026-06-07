@@ -67,13 +67,19 @@ Each proposal on the **Output** tab has an **Approve** button. Clicking it queue
   submitted automatically until you turn it on.
 - **Turn on auto-submit.** Set these Railway variables:
   - `AUTO_SUBMIT_ENABLED` = `true` — the master switch. (`STEEL_API_KEY` must also be set — it drives
-    the browser that fills the forms.)
-  - `AUTO_SUBMIT_DRY_RUN` = `true` *(optional)* — safe test: the agent opens the form and fills it but
-    does **not** click final submit.
-- **What gets submitted:** the two **scripted sites** (Eat Sleep Golf, Tinylaunch) use their tuned
-  scripts; **every other target** uses a **generic best-effort submitter** that fills your Scoring Zone
-  profile into the form and submits. It handles simple "submit your site" forms and flags complex ones
-  (logins / multi-step) as **"needs manual submit"** with screenshots.
+    the browser that fills the forms and beats CAPTCHAs.)
+  - `AUTO_SUBMIT_DRY_RUN` — **defaults to `true` (safe)**: the agent fills the form but does **not**
+    click submit. Set it to `false` for real submissions.
+  - `APPROVE_TOKEN` = a secret string — then load the dashboard as `https://<host>/?k=YOURTOKEN`.
+    The buttons send it; visitors/bots without it get 401. (Strongly recommended on a public page.)
+  - `MAX_AUTOSUBMITS_PER_DAY` = `3` *(optional)* — caps real submissions per day so link velocity
+    stays steady/low (penalty safety).
+- **What gets submitted (SAFETY GATE):** only the **scripted sites** (Eat Sleep Golf, Tinylaunch) and
+  domains you add to **`auto_submit_allowlist.json`** are auto-submitted (via Steel, CAPTCHA-solving
+  intact). **Every other approved target is flagged "needs manual submit"** for you to review — this
+  protects scoringzone.net from Google link-spam penalties (bulk automated low-quality directory links
+  are devalued or penalized). Add a domain to the allowlist only after you've vetted it as a relevant,
+  high-quality, editorially-reviewed directory.
 - **Watch it happen:** the Approved tab shows **Submitting… → Submitted / Manual submit / Error** live,
   and each attempt appears on the **Sessions** tab; successful ones update the **Submissions** tab.
 

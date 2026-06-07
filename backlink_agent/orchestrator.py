@@ -86,8 +86,8 @@ def load_config():
         "auto_submit_enabled": os.getenv("AUTO_SUBMIT_ENABLED", "false").strip().lower() in ("1", "true", "yes"),
         # Go-live date (YYYY-MM-DD). If unset, defaults to launch_date + 7 days (the manual phase).
         "auto_submit_after": os.getenv("AUTO_SUBMIT_AFTER", "").strip(),
-        # Testing override: in the auto phase, log intended submits instead of running them.
-        "auto_submit_dry_run": os.getenv("AUTO_SUBMIT_DRY_RUN", "false").strip().lower() in ("1", "true", "yes"),
+        # Safe default: dry-run ON unless explicitly disabled (real submit needs DRY_RUN=false).
+        "auto_submit_dry_run": os.getenv("AUTO_SUBMIT_DRY_RUN", "true").strip().lower() not in ("0", "false", "no"),
     }
 
 
