@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, date
 from pathlib import Path
 from urllib.parse import urlparse
@@ -255,7 +256,17 @@ def discover_new(known: set, max_items: int) -> tuple[list[dict], int, int]:
             break
         page_host = urlparse(url).netloc.lower().lstrip("www.")
         try:
-            data = discover.cheap_scrape(url, extract_links=True)
+            # Retry transient Steel scrape failures (the 500s) with backoff before giving up.
+            data = None
+            for attempt in range(3):
+                try:
+                    data = discover.cheap_scrape(url, extract_links=True)
+                    break
+                except Exception as se:
+                    if attempt == 2:
+                        raise
+                    print(f"[research] scrape retry {attempt + 1}/3 for {url}: {se}")
+                    time.sleep(2 * (attempt + 1))
             pages_scraped += 1
             for t in discover.extract_potential_targets(data, url):
                 u = t.get("url", "")
@@ -488,14 +499,41 @@ def discover_via_search(known: set, max_items: int) -> tuple[list[dict], int, in
     return out, queries_run, errors
 
 
+def _load_handled_urls() -> set:
+    """Normalized URLs already in the Approve queue or the submission log, so discovery never
+    re-surfaces (and the LLM never re-scores) a target the human has already actioned/submitted.
+    Read directly (no import coupling); best-effort."""
+    out: set = set()
+    for fname in ("approvals.json", "submission_log.json"):
+        path = DATA_DIR / fname
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                for entry in (data if isinstance(data, list) else []):
+                    if isinstance(entry, dict):
+                        u = _norm_url(entry.get("url", ""))
+                        if u:
+                            out.add(u)
+        except Exception as e:
+            print(f"[research] could not read {fname} for dedup: {e}")
+    return out
+
+
 def run(max_candidates: int = 50) -> list[dict]:
     """Build the de-duplicated candidate pool: curated seed (always) + new discoveries (additive).
 
     Discovery has two additive sources, both gated on their keys and both de-duped against the
-    curated list and each other: web search (Serper) and roundup scraping (Steel).
+    curated list, each other, AND already-handled targets (Approve queue + submission log).
     """
     seeded, known = seed_from_tracker()
     print(f"[research] seeded {len(seeded)} open target(s) from the curated list.")
+
+    # Don't re-discover/re-score targets already queued or submitted (saves OpenRouter spend +
+    # avoids duplicate proposals/submissions).
+    handled = _load_handled_urls()
+    if handled:
+        known |= handled
+        print(f"[research] skipping {len(handled)} already-handled target(s) (approved/submitted).")
 
     remaining = max(0, max_candidates - len(seeded))
 

@@ -34,7 +34,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page
+from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
 
 # Dashboard session metadata
 MODE = "submit_eatsleepgolf"
@@ -93,6 +93,7 @@ def submit() -> str:
         # Load the page
         page.goto("https://www.eatsleepgolf.net/get-listed", wait_until="domcontentloaded", timeout=60000)
         time.sleep(3)  # Give time for any dynamic content / anti-bot
+        wait_for_captchas(client, session_id)  # let Steel solve any load-time CAPTCHA
 
         # Optional: Take initial screenshot for debugging
         screenshot_path = Path("eatsleepgolf_form_before.png")
@@ -220,6 +221,7 @@ def submit() -> str:
             time.sleep(30)
 
         # Wait for any post-submit page / confirmation / donation step
+        wait_for_captchas(client, session_id)  # solve any CAPTCHA the submit triggered
         print("Waiting for response / confirmation page...")
         time.sleep(5)
         page.wait_for_load_state("domcontentloaded", timeout=30000)
