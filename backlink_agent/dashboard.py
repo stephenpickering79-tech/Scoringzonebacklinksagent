@@ -163,7 +163,10 @@ def build_submissions() -> list[dict]:
     # Overlay real submittals recorded by the agent / submit_*.py (data/submission_log.json):
     # update a matching markdown row's status+date, else append a new row. Lets a submission
     # show on the Submissions tab even though the agent can't edit the committed markdown.
-    return _merge_submission_log(submissions)
+    submissions = _merge_submission_log(submissions)
+    # Also fold in everything you've approved / the agent has acted on (data/approvals.json) so the
+    # Submissions tab is the unified record: curated history + approved/submitting/needs-manual/error.
+    return _merge_approvals(submissions)
 
 
 def _sub_key(name: str, url: str) -> str:
@@ -211,6 +214,61 @@ def _merge_submission_log(submissions: list[dict]) -> list[dict]:
                 "status": status,
                 "url": url or None,
                 "notes": notes,
+            })
+    return submissions
+
+
+# Approval status → Submissions-tab label.
+_APPROVAL_STATUS_LABEL = {
+    "approved": "Approved — to submit",
+    "submitting": "Submitting…",
+    "submitted": "Submitted (auto)",
+    "needs_manual_submit": "Needs manual submit",
+    "error": "Submit error",
+}
+# Existing statuses we may overwrite with an approval label (weak / placeholder ones only).
+_WEAK_STATUS_BITS = ("", "not submitted", "ready", "prepared", "to submit")
+
+
+def _merge_approvals(submissions: list[dict]) -> list[dict]:
+    """Fold the Approve queue (data/approvals.json) into the Submissions list so approved /
+    submitting / needs-manual / errored targets appear there too — without clobbering a real
+    'Live ✓'/'Submitted' history row."""
+    if not APPROVALS_FILE.exists():
+        return submissions
+    try:
+        approvals = json.loads(APPROVALS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return submissions
+    if not isinstance(approvals, list):
+        return submissions
+
+    by_key = {_sub_key(s.get("name", ""), s.get("url", "")): s for s in submissions}
+    by_name = {_sub_key(s.get("name", ""), ""): s for s in submissions}
+    for a in approvals:
+        if not isinstance(a, dict):
+            continue
+        name, url = a.get("name", ""), a.get("url", "")
+        label = _APPROVAL_STATUS_LABEL.get(a.get("status", ""), a.get("status") or "Approved")
+        date = (a.get("updated_at") or a.get("approved_at") or "")[:10]
+        existing = by_key.get(_sub_key(name, url)) or by_name.get(_sub_key(name, ""))
+        if existing:
+            cur = (existing.get("status") or "").strip().lower()
+            if any(cur == w or cur.startswith(w) for w in _WEAK_STATUS_BITS if w) or not cur:
+                existing["status"] = label
+                if date:
+                    existing["date"] = date
+            if not existing.get("url") and url:
+                existing["url"] = url
+        else:
+            submissions.append({
+                "name": name or url,
+                "date": date,
+                "dr": None,
+                "dr_label": "—",
+                "status": label,
+                "url": url or None,
+                "notes": a.get("detail", ""),
             })
     return submissions
 
