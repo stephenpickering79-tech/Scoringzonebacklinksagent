@@ -55,6 +55,10 @@ BASE_DIR = Path(__file__).parent.parent
 LOGS_DIR = BASE_DIR / "logs"
 DATA_DIR = BASE_DIR / "data"
 
+# How many newly-discovered targets to surface for human review each run. Discoveries are NOT
+# auto-dropped by score (Stephen reviews them); this just keeps the daily list manageable.
+MAX_DISCOVERIES_SHOWN = 25
+
 LOGS_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -157,16 +161,16 @@ def main():
         # Curated targets are already vetted by the user — include them directly (no score cutoff).
         scored_seeded = score_seeded_targets(seeded)
 
-        # New discoveries: if an LLM key is available, score them for relevance + threshold.
-        # Otherwise present them for HUMAN review (a keyword rule can't judge a new directory's
-        # quality, and would wrongly drop real SaaS directories that lack a golf keyword).
+        # New discoveries are ALWAYS surfaced for human review — never auto-dropped by score.
+        # The LLM (if available) only ranks them; Stephen decides via Approve/Dismiss. A keyword
+        # rule can't judge a new directory's quality and would wrongly drop real SaaS/general
+        # directories that lack a golf keyword (and Stephen wants those surfaced too).
         openrouter_key = config.get("openrouter_api_key")
-        max_new = config["max_submissions_per_day"] * 3  # cap discoveries shown (default 15)
         if openrouter_key and new_candidates:
-            log("Using OpenRouter (Grok via OpenRouter) to score new discoveries...")
+            log("Using OpenRouter to score new discoveries (for ranking, not filtering)...")
             try:
-                scored_new = score_candidates_with_openrouter(new_candidates, openrouter_key, config["min_authority_score"])
-                scored_new = [s for s in scored_new if s["score"] >= config["min_authority_score"]]
+                # min_score=0 → keep ALL discoveries with their score; no relevance cutoff.
+                scored_new = score_candidates_with_openrouter(new_candidates, openrouter_key, 0)
             except Exception as e:
                 log(f"OpenRouter scoring failed ({e}); presenting discoveries for manual review.")
                 scored_new = score_discoveries_for_review(new_candidates)
@@ -175,8 +179,13 @@ def main():
                 log("No OPENROUTER_API_KEY — presenting discoveries for manual review.")
             scored_new = score_discoveries_for_review(new_candidates)
 
+        # Mark every discovery as needing review (these are NOT auto-vetted like curated targets).
+        for s in scored_new:
+            sc = s.get("score", 0)
+            s["recommended_action"] = "Review — strong find" if sc >= config["min_authority_score"] else "Review — new find"
+
         scored_new.sort(key=lambda x: x["score"], reverse=True)
-        scored_new = scored_new[:max_new]  # keep the list focused
+        scored_new = scored_new[:MAX_DISCOVERIES_SHOWN]  # keep the daily list manageable
 
         # Curated targets first (already sorted by seed score), then qualifying discoveries.
         scored = scored_seeded + scored_new
