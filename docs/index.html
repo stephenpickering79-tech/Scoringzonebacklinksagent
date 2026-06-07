@@ -19,6 +19,7 @@
       </div>
       <nav class="nav" id="nav">
         <button class="nav-item active" data-view="output"><span class="ic">◷</span> Output</button>
+        <button class="nav-item" data-view="approved"><span class="ic">✓</span> Approved</button>
         <button class="nav-item" data-view="sessions"><span class="ic">⦿</span> Sessions</button>
         <button class="nav-item" data-view="submissions"><span class="ic">▤</span> Submissions</button>
       </nav>
@@ -47,6 +48,13 @@
         <div class="panel">
           <div class="panel-head"><h2>Run history</h2></div>
           <div class="panel-body" id="runs"></div>
+        </div>
+      </section>
+
+      <section class="view hidden" id="view-approved">
+        <div class="panel">
+          <div class="panel-head"><h2>Approved — to submit</h2><span class="panel-meta" id="approvedMeta"></span></div>
+          <div class="panel-body" id="approved"></div>
         </div>
       </section>
 

@@ -3,7 +3,7 @@
    Exposes a small global `BL`. No dependencies, no build step.
    =========================================================================== */
 (function () {
-  const FILES = ["submissions", "proposals", "runs", "sessions", "meta"];
+  const FILES = ["submissions", "proposals", "runs", "sessions", "approvals", "meta"];
 
   // base is a relative path to the data dir, e.g. "../data/" or "data/".
   async function loadAll(base) {
@@ -23,6 +23,7 @@
       proposals: out.proposals || { date: null, items: [] },
       runs: out.runs || [],
       sessions: out.sessions || [],
+      approvals: out.approvals || [],
       meta: out.meta || { counts: {}, latest_run_date: null, generated_at: null },
     };
   }

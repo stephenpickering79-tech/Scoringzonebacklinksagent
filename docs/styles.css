@@ -88,6 +88,18 @@
 .run-row .rfig { color: var(--muted); }
 .trend-card { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 
+/* Approve button (Output → Action column) ------------------------------- */
+.cell-approve { white-space: nowrap; }
+.approve-btn {
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  color: #fff; background: var(--accent); border: 1px solid var(--accent-ink);
+  border-radius: 7px; padding: 5px 12px; cursor: pointer;
+  transition: filter .12s ease, opacity .12s ease;
+}
+.approve-btn:hover { filter: brightness(1.05); }
+.approve-btn:disabled { opacity: .6; cursor: default; }
+.approve-btn.approve-err { background: var(--blocked-bg); color: var(--blocked); border-color: var(--blocked); }
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 14px; }

@@ -35,6 +35,7 @@ LOGS_DIR = BASE_DIR / "logs"
 DOCS_DATA = BASE_DIR / "docs" / "data"
 MD_PATH = BASE_DIR / "directory-submissions.md"
 SESSIONS_LOG = DATA_DIR / "sessions.jsonl"
+APPROVALS_FILE = DATA_DIR / "approvals.json"
 
 # Number of session-id characters to keep in the public (committed) JSON.
 SESSION_ID_PREFIX = 8
@@ -251,6 +252,43 @@ def build_sessions() -> list[dict]:
     return sessions
 
 
+def build_approvals() -> list[dict]:
+    """The Approve queue (data/approvals.json) normalized for the dashboard panel.
+
+    Read directly (no secrets in the queue) so this works whether dashboard.py is
+    run standalone or imported. Newest first.
+    """
+    if not APPROVALS_FILE.exists():
+        return []
+    try:
+        raw = json.loads(APPROVALS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for a in raw:
+        if not isinstance(a, dict):
+            continue
+        out.append({
+            "name": a.get("name", ""),
+            "url": a.get("url", ""),
+            "status": a.get("status", "approved"),
+            "approved_at": a.get("approved_at"),
+            "updated_at": a.get("updated_at"),
+            "detail": a.get("detail", ""),
+        })
+    out.sort(key=lambda x: (x.get("approved_at") or ""), reverse=True)
+    return out
+
+
+def refresh_approvals() -> None:
+    """Write only docs/data/approvals.json. Called by serve.py right after an
+    Approve click so the Approved panel reflects it without a full regen."""
+    DOCS_DATA.mkdir(parents=True, exist_ok=True)
+    _write("approvals.json", build_approvals())
+
+
 def build_meta(counts: dict, latest_run_date) -> dict:
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -291,17 +329,24 @@ def generate_all() -> None:
     except Exception as e:
         print(f"  build_sessions failed: {e}")
         sessions = []
+    try:
+        approvals = build_approvals()
+    except Exception as e:
+        print(f"  build_approvals failed: {e}")
+        approvals = []
 
     _write("submissions.json", submissions)
     _write("proposals.json", proposals)
     _write("runs.json", runs)
     _write("sessions.json", sessions)
+    _write("approvals.json", approvals)
 
     counts = {
         "submissions": len(submissions),
         "proposals": len(proposals.get("items", [])),
         "runs": len(runs),
         "sessions": len(sessions),
+        "approvals": len(approvals),
     }
     latest_run_date = proposals.get("date") or (runs[-1]["date"] if runs else None)
     _write("meta.json", build_meta(counts, latest_run_date))
