@@ -86,27 +86,25 @@
       const isCurated = /target list/i.test(it.source || "") || !!idx[approvalKey(it.name, it.url)];
       (isCurated ? curated : discoveries).push(it);
     });
-    const section = (label, list, showStatus) => list.length
-      ? `<div class="group-label">${label} <span>${list.length}</span></div>` + proposalTable(list, idx, showStatus)
+    const section = (label, list) => list.length
+      ? `<div class="group-label">${label} <span>${list.length}</span></div>` + proposalTable(list, idx)
       : "";
     $("proposals").innerHTML =
-      section("Curated &amp; approved", curated, true) +
-      section("New discoveries — review", discoveries, false);
+      section("Curated &amp; approved", curated) +
+      section("New discoveries — review", discoveries);
     wireApproveButtons($("proposals"));
   }
 
-  // Build one proposals table. showStatus keeps the small action hint (Submit/Awaiting) for curated
-  // rows; discoveries don't need it (the group header already says "review").
-  function proposalTable(list, idx, showStatus) {
+  // Build one proposals table. Both groups render identically.
+  function proposalTable(list, idx) {
     const rows = list.map((it, i) => {
       const label = (it.name && it.name.trim()) ? it.name : BL.host(it.url) || it.url || "—";
       const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(label)}</a>` : BL.escapeHtml(label);
       const existing = idx[approvalKey(it.name, it.url)];
       const why = BL.cleanMd(it.justification);
       const whyShort = why.length > 160 ? why.slice(0, 160).trimEnd() + "…" : why;
-      const sub = showStatus && it.recommended_action ? `<span class="sub">${BL.escapeHtml(it.recommended_action)}</span>` : "";
       return `<tr class="reveal" style="animation-delay:${i * 0.02}s">
-        <td class="t-name">${t}${sub}</td>
+        <td class="t-name">${t}</td>
         <td class="cell-score">${scoreChip(it.score)}</td>
         <td>${qualityCell(it)}</td>
         <td class="cell-why" title="${BL.escapeHtml(why)}"><span class="why-text">${BL.escapeHtml(whyShort)}</span></td>
