@@ -30,11 +30,13 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, steel_page
+from steel_utils import record_session, record_submission, steel_page
 
 # Dashboard session metadata
 MODE = "submit_tinylaunch"
 TARGET_URL = "https://www.tinylaunch.com/submit"
+# Name used on the Submissions tab (not in the master markdown table → appended as a new row).
+SUBMISSION_NAME = "Tinylaunch"
 
 # Data from tinylaunch-submission.txt
 PRODUCT_NAME = "Scoring Zone"
@@ -211,6 +213,10 @@ def submit() -> str:
         record_session(sid, target=TARGET_URL, mode=MODE,
                        outcome="submitted" if submitted else "aborted",
                        screenshots=screenshots)
+        # On a real submit, also update the Submissions tab with a status.
+        if submitted:
+            record_submission(SUBMISSION_NAME, TARGET_URL, status="Submitted (auto)", method="auto",
+                              notes="Auto-submitted via Steel.")
 
         print("\n=== Tinylaunch submission attempt complete ===")
         print("Review screenshots and session viewer. If account creation or additional steps required, complete manually and note in tracker.")

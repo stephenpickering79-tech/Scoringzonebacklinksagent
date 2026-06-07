@@ -34,11 +34,13 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, steel_page
+from steel_utils import record_session, record_submission, steel_page
 
 # Dashboard session metadata
 MODE = "submit_eatsleepgolf"
 TARGET_URL = "https://www.eatsleepgolf.net/get-listed"
+# Name used on the Submissions tab. Matches the markdown row so a submittal UPDATES it.
+SUBMISSION_NAME = "Eat Sleep Golf - Get Listed"
 
 # === Submission data (from eatsleepgolf-submission.txt) ===
 COMPANY_NAME = "Scoring Zone"
@@ -232,6 +234,10 @@ def submit() -> str:
         record_session(session_id, target=TARGET_URL, mode=MODE,
                        outcome="submitted" if submitted else "aborted",
                        screenshots=screenshots)
+        # On a real submit, also update the Submissions tab with a status.
+        if submitted:
+            record_submission(SUBMISSION_NAME, TARGET_URL, status="Submitted (auto)", method="auto",
+                              notes="Auto-submitted via Steel.")
 
         # Print any visible success text
         try:

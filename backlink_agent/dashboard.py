@@ -36,6 +36,7 @@ DOCS_DATA = BASE_DIR / "docs" / "data"
 MD_PATH = BASE_DIR / "directory-submissions.md"
 SESSIONS_LOG = DATA_DIR / "sessions.jsonl"
 APPROVALS_FILE = DATA_DIR / "approvals.json"
+SUBMISSION_LOG = DATA_DIR / "submission_log.json"
 
 # Number of session-id characters to keep in the public (committed) JSON.
 SESSION_ID_PREFIX = 8
@@ -157,6 +158,59 @@ def build_submissions() -> list[dict]:
                 "status": (row.get("Status") or "").strip(),
                 "url": url_by_name.get(name.lower()),
                 "notes": (row.get("Notes") or "").strip(),
+            })
+
+    # Overlay real submittals recorded by the agent / submit_*.py (data/submission_log.json):
+    # update a matching markdown row's status+date, else append a new row. Lets a submission
+    # show on the Submissions tab even though the agent can't edit the committed markdown.
+    return _merge_submission_log(submissions)
+
+
+def _sub_key(name: str, url: str) -> str:
+    """Match key shared with steel_utils.record_submission — URL if present, else name."""
+    u = (url or "").strip().lower().replace("https://", "").replace("http://", "")
+    u = u.lstrip("www.").rstrip("/")
+    if u:
+        return u
+    return " ".join((name or "").strip().lower().split())
+
+
+def _merge_submission_log(submissions: list[dict]) -> list[dict]:
+    if not SUBMISSION_LOG.exists():
+        return submissions
+    try:
+        log = json.loads(SUBMISSION_LOG.read_text(encoding="utf-8"))
+    except Exception:
+        return submissions
+    if not isinstance(log, list):
+        return submissions
+
+    by_key = {_sub_key(s.get("name", ""), s.get("url", "")): s for s in submissions}
+    # Markdown rows often lack a URL but the log has one — also index by name so they still match.
+    by_name = {_sub_key(s.get("name", ""), ""): s for s in submissions}
+    for e in log:
+        if not isinstance(e, dict):
+            continue
+        name, url = e.get("name", ""), e.get("url", "")
+        status = e.get("status") or "Submitted"
+        date = e.get("date") or ""
+        notes = e.get("notes") or "Auto-submitted by agent"
+        existing = by_key.get(_sub_key(name, url)) or by_name.get(_sub_key(name, ""))
+        if existing:
+            existing["status"] = status
+            if date:
+                existing["date"] = date
+            if not existing.get("url") and url:
+                existing["url"] = url
+        else:
+            submissions.append({
+                "name": name or url,
+                "date": date,
+                "dr": None,
+                "dr_label": "—",
+                "status": status,
+                "url": url or None,
+                "notes": notes,
             })
     return submissions
 
