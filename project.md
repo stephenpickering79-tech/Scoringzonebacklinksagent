@@ -35,6 +35,23 @@ today** — submissions are still done manually (auto-submit is on the roadmap).
 
 Full setup walkthrough: [`DEPLOY_RAILWAY.md`](DEPLOY_RAILWAY.md).
 
+### Production status (snapshot — 2026-06-06)
+**Working in production**
+- The dashboard is live, and the **Output** tab shows the 10 curated targets (Eat Sleep Golf,
+  Tinylaunch, Indie Hackers, etc.) — so seeding works on Railway.
+- The **Sessions** tab shows research runs.
+
+**⏳ Web-search discovery wasn't active yet (at the time of this snapshot)**
+- Proposals were all "Your target list" — no "web search" finds — and sessions said
+  *"12 pages, 0 new"* (no searches). Tell-tale sign: `SERPER_API_KEY` wasn't set in Railway yet, so
+  the agent skipped web search (exactly as designed when the key is missing).
+- It needs two things: the Serper key, **and** a fresh run with the new code.
+
+> **Update:** `SERPER_API_KEY` has since been added in Railway. To make the web-search finds appear,
+> trigger one fresh run — set `RUN_ON_START=true` in Railway once (then remove it), or wait for the
+> next 09:00 run. After that, Output should show curated targets **plus** "Review — new find" rows
+> and Sessions should read *"N searches, M pages, K new"*.
+
 ---
 
 ## How it works (daily)
