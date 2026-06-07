@@ -24,7 +24,7 @@ from pathlib import Path
 
 from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
 from submission_profile import (
-    COMPANY_NAME, CONTACT_EMAIL, CONTACT_NAME, LONG_DESC, SHORT_DESC, TAGS, WEBSITE,
+    COMPANY_NAME, CONTACT_EMAIL, CONTACT_NAME, LONG_DESC, TAGS, WEBSITE, pick_short_desc,
 )
 
 MODE = "submit_generic"
@@ -95,11 +95,13 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
             ),
         }
 
-        # Descriptions: first textarea = short, second = long (best-effort).
+        # Descriptions: first textarea = short, second = long (best-effort). The short text is
+        # rotated per target (footprint diversity — avoid identical copy on every directory).
+        short_desc = pick_short_desc(url)
         textareas = page.query_selector_all("textarea")
         if textareas:
             try:
-                textareas[0].fill(SHORT_DESC[:500])
+                textareas[0].fill(short_desc[:500])
             except Exception:
                 pass
         if len(textareas) > 1:
@@ -108,7 +110,7 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
             except Exception:
                 pass
         if not textareas:
-            try_fill('textarea, [contenteditable="true"]', SHORT_DESC[:500])
+            try_fill('textarea, [contenteditable="true"]', short_desc[:500])
 
         # Optional fields — never gate on these.
         try_fill('input[name*="tag" i], input[name*="categor" i], input[placeholder*="tag" i], input[placeholder*="categor" i]', TAGS)
@@ -124,7 +126,19 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
         print(f"Core fields filled: {filled} ({core_ok}/3)")
 
         if core_ok == 0:
-            print("ABORT: no core field matched — this form isn't a simple submit form.")
+            # Distinguish a login/members wall from "selectors didn't match" so the dashboard
+            # detail is honest about why it bowed out (rather than posting partial data).
+            reason = "no core field matched — not a simple submit form"
+            try:
+                if page.query_selector('input[type="password"]'):
+                    reason = "login/account required (password field present) — submit manually"
+                else:
+                    txt = (page.inner_text("body")[:2000] or "").lower()
+                    if any(p in txt for p in ("sign in to", "log in to", "create an account to", "members only")):
+                        reason = "login/account required — submit manually"
+            except Exception:
+                pass
+            print(f"ABORT: {reason}.")
             record_session(sid, target=url, mode=MODE, outcome="aborted", screenshots=screenshots)
             return "aborted"
 
@@ -163,8 +177,19 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
         outcome = "submitted" if submitted else "aborted"
         record_session(sid, target=url, mode=MODE, outcome=outcome, screenshots=screenshots)
         if submitted:
+            # Best-effort: if our backlink is already visible on the result page, record whether
+            # it's dofollow/nofollow (disavow-readiness). Usually the listing is reviewed later, so
+            # this is often "not yet visible" — a proper check belongs in a later verification pass.
+            rel_note = "link not yet visible (listing likely pending review)"
+            try:
+                link = page.query_selector('a[href*="scoringzone"]')
+                if link:
+                    rel = (link.get_attribute("rel") or "").lower()
+                    rel_note = "nofollow link" if "nofollow" in rel else "dofollow link"
+            except Exception:
+                pass
             record_submission(name, url, status="Submitted (auto)", method="auto",
-                              notes="Auto-submitted via generic Steel submitter.")
+                              notes=f"Auto-submitted via generic Steel submitter. {rel_note}.")
         print(f"=== Generic submit {outcome}: {name} ===")
         return outcome
 

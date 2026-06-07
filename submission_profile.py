@@ -10,6 +10,8 @@ copies. Edit here to change what gets submitted everywhere generic.
 
 from __future__ import annotations
 
+import hashlib
+
 COMPANY_NAME = "Scoring Zone"
 WEBSITE = "https://www.scoringzone.net"
 CONTACT_NAME = "Stephen Pickering"
@@ -39,6 +41,27 @@ LONG_DESC = (
 )
 
 TAGS = "Golf App, Short Game Training, Putting Practice, Golf Practice Tools, Golf Improvement, Pressure Training"
+
+# Short-description variants — rotated per target so we don't stamp the identical text on every
+# directory (an over-optimization / footprint signal). All branded, none keyword-stuffed.
+SHORT_DESCS = [
+    SHORT_DESC,
+    ("Scoring Zone is a scored short-game practice app for golfers — drills, pressure tests and a "
+     "Short Game Handicap for putting, chipping, pitching and bunker play. Free in early access, "
+     "installable as a PWA, no hardware needed."),
+    ("Scoring Zone helps golfers practise the scoring shots inside 100 yards with measurable, "
+     "gamified drills and a 60-shot Performance Hub that calculates a Short Game and Putting "
+     "Handicap. Free during early access."),
+]
+
+
+def pick_short_desc(seed: str = "") -> str:
+    """Deterministically pick a short-description variant for a given target (stable per site,
+    varied across sites) so submissions don't share an identical footprint."""
+    if not seed:
+        return SHORT_DESC
+    idx = int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % len(SHORT_DESCS)
+    return SHORT_DESCS[idx]
 
 # Convenience dict for callers that prefer keyed access.
 PROFILE = {

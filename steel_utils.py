@@ -93,6 +93,19 @@ _SESSIONS_LOG = Path(__file__).parent / "data" / "sessions.jsonl"
 _SUBMISSIONS_LOG = Path(__file__).parent / "data" / "submission_log.json"
 
 
+def send_alert(message: str) -> None:
+    """Best-effort failure/observability alert. POSTs to ALERT_WEBHOOK_URL (Slack-style
+    {"text": ...}) if set; no-op otherwise. Never raises."""
+    url = os.getenv("ALERT_WEBHOOK_URL", "").strip()
+    if not url:
+        return
+    try:
+        import requests
+        requests.post(url, json={"text": f"[Scoring Zone backlinks] {message}"}, timeout=10)
+    except Exception as e:  # pragma: no cover
+        print(f"Warning: alert webhook failed: {e}")
+
+
 def _submission_key(name: str, url: str) -> str:
     """Identity for a submission entry — URL if present, else name (normalized)."""
     u = (url or "").strip().lower().replace("https://", "").replace("http://", "")

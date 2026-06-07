@@ -164,5 +164,11 @@ def run_approval_submission(name: str, url: str, dry_run: bool = False) -> tuple
         dashboard_mod.refresh_submissions()
     except Exception as e:
         print(f"[submitter] could not record result for {name!r}: {e}")
+    if status == "error":
+        try:
+            from steel_utils import send_alert
+            send_alert(f"submission error for {name}: {detail}")
+        except Exception:
+            pass
     print(f"[submitter] {name} → {status} ({detail})")
     return status, detail

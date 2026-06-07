@@ -53,6 +53,7 @@ from backlink_agent import dashboard          # noqa: E402
 from backlink_agent import orchestrator       # noqa: E402
 from backlink_agent import research           # noqa: E402
 from backlink_agent import submitter          # noqa: E402
+from steel_utils import send_alert            # noqa: E402
 
 MAX_POST_BYTES = 64_000  # approve/dismiss payloads are tiny; reject anything larger.
 
@@ -232,10 +233,12 @@ def run_propose_cycle() -> None:
         orchestrator.main()
     except Exception as e:
         log(f"orchestrator.main() failed: {e}")
+        send_alert(f"propose run FAILED in orchestrator: {e}")
     try:
         dashboard.generate_all()
     except Exception as e:
         log(f"dashboard.generate_all() failed: {e}")
+        send_alert(f"dashboard generation FAILED: {e}")
     log("Propose cycle finished.")
 
 
