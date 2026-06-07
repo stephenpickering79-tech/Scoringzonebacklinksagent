@@ -359,19 +359,25 @@ SEARCH_QUERY_POOL = [
     "golf blog \"write for us\" resources",
     "golf coach resources \"list your\" tool",
     "sports app directory add your listing",
-    # --- Quality general / maker / SaaS directories ---
+    # --- Golf/sports niche, local, association & editorial (highest-value, lowest-risk) ---
+    "golf app review \"submit your app\"",
+    "golf instruction resources page \"submit a resource\"",
+    "golf coaching directory add your business",
+    "golf technology companies directory",
+    "golf startup directory list your company",
+    "golf blog \"guest post\" OR \"write for us\"",
+    "sports technology directory submit your company",
+    "golf association member directory apply",
+    "best putting apps OR best short game apps roundup",
+    "\"add your golf business\" directory",
+    # --- Quality general / maker / SaaS directories (volume filler, kept lower-weight) ---
     "submit your SaaS directory dofollow",
     "submit your startup directory dofollow",
     "best indie maker directories submit your product",
-    "SaaS directory submit your product 2026",
     "launch your app directory submit",
-    "submit your app directory get listed",
     "startup directory \"add your startup\" free dofollow",
-    "best directories to submit your app 2026",
-    "product launch directory submit your startup",
     "app of the day directory submit",
     "indie hackers tool directory submit",
-    "new product directory \"submit\" dofollow backlink",
 ]
 
 # How many of the pool to run per day. The window rotates by date so coverage spreads over ~3 days.
