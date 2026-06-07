@@ -35,17 +35,6 @@
       "notes": "Prepared — ready to post manually"
     },
     {
-      "name": "Reddit value seeding (r/golftips, r/GolfFriends, r/golf)",
-      "url": "Various threads",
-      "score": 88,
-      "topical_relevance": "High",
-      "justification": "Value-first posts (drills, benchmarks, \"free short game system\"). Can earn natural links + direct signups. Follow existing `golf-subreddits.md`.",
-      "recommended_action": "Awaiting / verify",
-      "source": "Your target list",
-      "submission_method": "",
-      "notes": "In progress (per playbook)"
-    },
-    {
       "name": "Other pending from original queue",
       "url": "See Live/Submitted table above for F6S, BetaList, etc.",
       "score": 86,
@@ -55,17 +44,6 @@
       "source": "Your target list",
       "submission_method": "",
       "notes": "Various"
-    },
-    {
-      "name": "Product Hunt",
-      "url": "",
-      "score": 85,
-      "topical_relevance": "High",
-      "justification": "Direct submit by Stephen",
-      "recommended_action": "Awaiting / verify",
-      "source": "Your target list",
-      "submission_method": "",
-      "notes": "Submitted"
     },
     {
       "name": "AppSumo",
@@ -145,6 +123,17 @@
       "notes": "web_search"
     },
     {
+      "name": "100+ Sites to Submit Your Startup (High Quality, High DA, Low ...",
+      "url": "https://omerilyasli.com/blog/sites-to-submit-your-startup/",
+      "score": 78,
+      "topical_relevance": "Review",
+      "justification": "I have gathered a big list of 100+ places that you can submit your startup for both SEO value and gaining more visibility in your space.",
+      "recommended_action": "Review — new find",
+      "source": "web search: sports tech startup directory submit your startup",
+      "submission_method": "",
+      "notes": "web_search"
+    },
+    {
       "name": "SubmitSaaS: Submit Your SaaS to 140+ Directories",
       "url": "https://submitsaas.com/",
       "score": 78,
@@ -171,18 +160,7 @@
       "url": "https://launchdirectories.com/directory-submission/saas",
       "score": 78,
       "topical_relevance": "Review",
-      "justification": "Directory submission for SaaS products. Get listed on 100+ directories to boost SEO, build backlinks, and attract customers. Done-for-you service saves 70+ ...",
-      "recommended_action": "Review — new find",
-      "source": "web search: submit your SaaS directory dofollow",
-      "submission_method": "",
-      "notes": "web_search"
-    },
-    {
-      "name": "7 Best Auto Directory Submission Tools (2026) | AutoSaaSLaunch",
-      "url": "https://autosaaslaunch.com/blog/best-automated-directory-submission-tools-2026",
-      "score": 78,
-      "topical_relevance": "Review",
-      "justification": "AutoSaaSLaunch is the best tool to automate your SaaS directory submissions and grow your business, fast. Built for founders, by founders ...",
+      "justification": "Directory submission is the process of getting your saas listed on startup directories, launch platforms, and product discovery sites. These directories are ...",
       "recommended_action": "Review — new find",
       "source": "web search: submit your SaaS directory dofollow",
       "submission_method": "",
@@ -204,7 +182,7 @@
       "url": "https://thesaasdir.com/blog/saas-directory-submission-mistakes/",
       "score": 78,
       "topical_relevance": "Review",
-      "justification": "Avoid the SaaS directory submission mistakes that waste your time and kill link equity. 9 specific fixes every founder needs before submitting.",
+      "justification": "When you are prioritizing which directories to submit to first, lead with known dofollow directories. These are your link-building priority.",
       "recommended_action": "Review — new find",
       "source": "web search: submit your SaaS directory dofollow",
       "submission_method": "",
@@ -222,11 +200,22 @@
       "notes": "web_search"
     },
     {
-      "name": "350+ Directory Submission Sites List in 2026 - FutureGenApps",
-      "url": "https://www.futuregenapps.com/directory-submission-sites-list",
+      "name": "7 Best Auto Directory Submission Tools (2026) | AutoSaaSLaunch",
+      "url": "https://autosaaslaunch.com/blog/best-automated-directory-submission-tools-2026",
       "score": 78,
       "topical_relevance": "Review",
-      "justification": "Paid directory submissions in SEO, however, provide instant approval, and enhanced visibility, and often give do-follow backlinks, which are excellent for SEO.",
+      "justification": "We tested 7 auto directory submission tools from $29 to $999. See real pricing, feature breakdowns, and which software saves the most time ...",
+      "recommended_action": "Review — new find",
+      "source": "web search: submit your SaaS directory dofollow",
+      "submission_method": "",
+      "notes": "web_search"
+    },
+    {
+      "name": "30 Application Directories to submit your SaaS - Super Monitoring",
+      "url": "https://www.supermonitoring.com/blog/30-application-directories-to-submit-your-saas/",
+      "score": 78,
+      "topical_relevance": "Review",
+      "justification": "Listing your web application in SaaS directories opens the road to collect do-follow links to your website, get some referral traffic and ...",
       "recommended_action": "Review — new find",
       "source": "web search: submit your SaaS directory dofollow",
       "submission_method": "",

@@ -51,6 +51,12 @@ except ImportError:
 
 SUBMISSIONS_MD = BASE_DIR / "directory-submissions.md"
 TARGETS_MD = BASE_DIR / "backlink-targets.md"
+# Targets to permanently exclude from proposals (never seeded, never discovered, never re-added).
+# Committed list = excluded_targets.json (repo); data/excluded.json (volume) is for runtime
+# additions (e.g. an "exclude" button later). A candidate is dropped if any excluded entry is a
+# substring of its name or URL (case-insensitive).
+EXCLUDED_FILE = BASE_DIR / "excluded_targets.json"
+RUNTIME_EXCLUDED_FILE = DATA_DIR / "excluded.json"
 
 # A target is "done/closed" (skip) if its status contains any of these. Everything else
 # (not submitted, prepared, ready, in progress, pending, applied, submitted, blank) is "open".
@@ -91,6 +97,27 @@ def _priority_score(priority: str) -> int:
 
 def _clean(cell: str) -> str:
     return re.sub(r"\s+", " ", (cell or "").strip())
+
+
+def load_excluded() -> set:
+    """Normalized exclusion phrases from excluded_targets.json (+ optional data/excluded.json)."""
+    out: set = set()
+    for path in (EXCLUDED_FILE, RUNTIME_EXCLUDED_FILE):
+        try:
+            if path.exists():
+                for entry in json.loads(path.read_text(encoding="utf-8")):
+                    n = _norm_name(str(entry))
+                    if n:
+                        out.add(n)
+        except Exception as e:
+            print(f"[research] could not read {path.name}: {e}")
+    return out
+
+
+def _is_excluded(candidate: dict, excluded: set) -> bool:
+    nm = _norm_name(candidate.get("name", ""))
+    url = _norm_url(candidate.get("url", ""))
+    return any(e in nm or (url and e in url) for e in excluded)
 
 
 def seed_from_tracker(open_only: bool = True) -> tuple[list[dict], set]:
@@ -439,15 +466,23 @@ def run(max_candidates: int = 50) -> list[dict]:
     print(f"[research] roundup scrape added {len(scraped)} candidate(s) "
           f"from {pages_scraped} page(s); {rerr} error(s).")
 
-    # Combine + final cross-source de-dupe (curated first, then search, then scrape).
+    # Combine + final cross-source de-dupe (curated first, then search, then scrape) + apply
+    # the permanent exclusion list (e.g. Reddit, Product Hunt) so excluded targets never re-appear.
+    excluded = load_excluded()
     candidates: list[dict] = []
     seen: set = set()
+    dropped_excluded = 0
     for c in seeded + searched + scraped:
+        if _is_excluded(c, excluded):
+            dropped_excluded += 1
+            continue
         key = _norm_url(c.get("url", "")) or _norm_name(c.get("name", ""))
         if not key or key in seen:
             continue
         seen.add(key)
         candidates.append(c)
+    if dropped_excluded:
+        print(f"[research] excluded {dropped_excluded} candidate(s) per excluded_targets.json.")
 
     # Record one research session so the dashboard Sessions tab reflects the run.
     new_total = len(searched) + len(scraped)
