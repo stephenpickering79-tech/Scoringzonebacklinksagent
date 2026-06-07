@@ -231,17 +231,50 @@
     const rows = items.map((a, i) => {
       const name = a.url ? `<a href="${BL.escapeHtml(a.url)}" target="_blank" rel="noopener">${BL.escapeHtml(a.name)}</a>` : BL.escapeHtml(a.name);
       const when = a.updated_at || a.approved_at;
+      // Let the user record a manually-completed submission (not for ones already submitted/in-flight).
+      const canMark = a.status !== "submitted" && a.status !== "submitting";
+      const action = canMark
+        ? `<button class="mark-btn" data-name="${BL.escapeHtml(a.name)}" data-url="${BL.escapeHtml(a.url || "")}">Mark submitted</button>`
+        : "";
       return `<tr class="reveal" style="animation-delay:${i * 0.02}s">
         <td class="t-name">${name}</td>
         <td><span class="badge ${approvalBadgeClass(a.status)}">${BL.escapeHtml(approvalStatusLabel(a.status))}</span></td>
         <td class="cell-date">${BL.fmtDateTime(when)}</td>
         <td class="cell-notes">${BL.escapeHtml(a.detail || "")}</td>
+        <td class="cell-approve">${action}</td>
       </tr>`;
     }).join("");
     $("approved").innerHTML = `<table>
-      <thead><tr><th>Target</th><th>Status</th><th>When</th><th>Detail</th></tr></thead>
+      <thead><tr><th>Target</th><th>Status</th><th>When</th><th>Detail</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table>`;
+    wireMarkButtons($("approved"));
     maybePollApprovals(data);
+  }
+
+  function wireMarkButtons(scope) {
+    scope.querySelectorAll(".mark-btn").forEach((btn) => {
+      btn.addEventListener("click", () => onMarkSubmitted(btn));
+    });
+  }
+
+  function onMarkSubmitted(btn) {
+    const name = btn.dataset.name || "", url = btn.dataset.url || "";
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    fetch("api/mark-submitted", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Approve-Token": APPROVE_TOKEN },
+      body: JSON.stringify({ name, url }),
+    })
+      .then((res) => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .then(() => {
+        const key = approvalKey(name, url);
+        const a = (DATA.approvals || []).find((x) => approvalKey(x.name, x.url) === key);
+        if (a) { a.status = "submitted"; a.detail = "Marked submitted manually."; a.updated_at = new Date().toISOString(); }
+        renderApproved(DATA);
+        renderProposals(DATA);
+      })
+      .catch((e) => { btn.disabled = false; btn.textContent = "Mark submitted"; btn.title = "Failed: " + e.message; });
   }
 
   function renderRuns(data) {
