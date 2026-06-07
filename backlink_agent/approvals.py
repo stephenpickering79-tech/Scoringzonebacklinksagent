@@ -40,7 +40,7 @@ BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 APPROVALS_FILE = DATA_DIR / "approvals.json"
 
-VALID_STATUSES = {"approved", "submitted", "needs_manual_submit", "error"}
+VALID_STATUSES = {"approved", "submitting", "submitted", "needs_manual_submit", "error"}
 
 
 def _key(name: str, url: str) -> str:

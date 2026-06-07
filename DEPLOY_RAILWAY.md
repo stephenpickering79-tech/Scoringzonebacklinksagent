@@ -60,24 +60,26 @@ service fits inside Railway's included $5 usage).
 
 ## The "Approve" button (queue → auto-submit)
 
-Each proposal on the **Output** tab has an **Approve** button. Clicking it queues that target on the
-**Approved** tab — it does **not** submit anything by itself. How the queue is then handled:
+Each proposal on the **Output** tab has an **Approve** button. Clicking it queues the target on the
+**Approved** tab and, when enabled, the agent **submits it immediately** in the background.
 
-- **Manual phase (default).** Approved targets just sit in the Approved list for you to submit by hand.
-  This is the behaviour out of the box — nothing is ever auto-submitted unless you turn it on.
-- **Auto phase (opt-in).** When you're ready, set these Railway variables:
-  - `AUTO_SUBMIT_ENABLED` = `true` — the master switch (leave unset/false to stay fully manual).
-  - `AUTO_SUBMIT_AFTER` = `YYYY-MM-DD` — the go-live date. Before it, approvals only queue; on/after it
-    the daily run auto-submits. If you leave it blank, it defaults to **first-run + 7 days**.
-  - `AUTO_SUBMIT_DRY_RUN` = `true` *(optional)* — log intended submissions without running them, for a
-    safe dry test.
-- **Scope:** auto-submit only covers the **scripted sites** (Eat Sleep Golf, Tinylaunch). Any other
-  approved target is flagged **"needs manual submit"** on the Approved tab — submit those by hand until
-  a per-site script exists. Each auto-submit also shows up on the **Sessions** tab.
+- **Default (off).** Approved targets sit in the Approved list for you to submit by hand. Nothing is
+  submitted automatically until you turn it on.
+- **Turn on auto-submit.** Set these Railway variables:
+  - `AUTO_SUBMIT_ENABLED` = `true` — the master switch. (`STEEL_API_KEY` must also be set — it drives
+    the browser that fills the forms.)
+  - `AUTO_SUBMIT_DRY_RUN` = `true` *(optional)* — safe test: the agent opens the form and fills it but
+    does **not** click final submit.
+- **What gets submitted:** the two **scripted sites** (Eat Sleep Golf, Tinylaunch) use their tuned
+  scripts; **every other target** uses a **generic best-effort submitter** that fills your Scoring Zone
+  profile into the form and submits. It handles simple "submit your site" forms and flags complex ones
+  (logins / multi-step) as **"needs manual submit"** with screenshots.
+- **Watch it happen:** the Approved tab shows **Submitting… → Submitted / Manual submit / Error** live,
+  and each attempt appears on the **Sessions** tab; successful ones update the **Submissions** tab.
 
-> The Approve buttons are unauthenticated (the page is public) — that's a deliberate choice. The risk is
-> limited because a click only *queues*; the agent decides on its schedule whether to act, and only ever
-> auto-submits to the two scripted sites after the go-live date you set.
+> The Approve buttons are unauthenticated (the page is public) — Stephen's deliberate choice. With
+> auto-submit on, a click triggers a real submission. Use `AUTO_SUBMIT_DRY_RUN=true` first if you want
+> to watch it fill forms safely before going fully live.
 
 ## Notes
 - Code still lives in **GitHub** (for safekeeping + version history). Railway just *runs* it and

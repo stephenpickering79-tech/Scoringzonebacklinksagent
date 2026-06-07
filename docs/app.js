@@ -107,6 +107,7 @@
   function approvalStatusLabel(status) {
     const map = {
       approved: "✓ Approved",
+      submitting: "Submitting…",
       submitted: "✓ Submitted",
       needs_manual_submit: "Manual submit",
       error: "Error",
@@ -118,7 +119,27 @@
     if (status === "submitted") return "live";
     if (status === "error") return "blocked";
     if (status === "needs_manual_submit") return "default";
-    return "pending"; // approved / queued
+    return "pending"; // approved / queued / submitting
+  }
+
+  // While the agent is mid-submit, poll approvals.json so status updates live (no manual refresh).
+  let _approvalPollTimer = null;
+  function maybePollApprovals(data) {
+    const active = (data.approvals || []).some((a) => a.status === "submitting");
+    if (!active || _approvalPollTimer) return;
+    _approvalPollTimer = setTimeout(() => {
+      _approvalPollTimer = null;
+      fetch("data/approvals.json", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((list) => {
+          if (Array.isArray(list)) {
+            DATA.approvals = list;
+            renderApproved(DATA);
+            renderProposals(DATA);
+          }
+        })
+        .catch(() => {});
+    }, 5000);
   }
 
   function wireApproveButtons(scope) {
@@ -138,11 +159,16 @@
       body: JSON.stringify({ name, url }),
     })
       .then((res) => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
-      .then(() => {
+      .then((resp) => {
         // Reflect locally without a full reload: add to the in-memory queue, re-render.
+        // If the server kicked off submission, show "submitting" so the live poll picks it up.
+        const status = resp && resp.submitting ? "submitting" : "approved";
         const key = approvalKey(name, url);
-        if (!(DATA.approvals || []).some((a) => approvalKey(a.name, a.url) === key)) {
-          DATA.approvals = (DATA.approvals || []).concat([{ name, url, status: "approved", approved_at: new Date().toISOString() }]);
+        const existing = (DATA.approvals || []).find((a) => approvalKey(a.name, a.url) === key);
+        if (existing) {
+          existing.status = status;
+        } else {
+          DATA.approvals = (DATA.approvals || []).concat([{ name, url, status, approved_at: new Date().toISOString() }]);
         }
         renderProposals(DATA);
         renderApproved(DATA);
@@ -175,6 +201,7 @@
     $("approved").innerHTML = `<table>
       <thead><tr><th>Target</th><th>Status</th><th>When</th><th>Detail</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
+    maybePollApprovals(data);
   }
 
   function renderRuns(data) {

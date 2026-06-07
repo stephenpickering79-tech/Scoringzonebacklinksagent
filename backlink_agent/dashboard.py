@@ -343,6 +343,13 @@ def refresh_approvals() -> None:
     _write("approvals.json", build_approvals())
 
 
+def refresh_submissions() -> None:
+    """Write only docs/data/submissions.json. Called after a submittal so the
+    Submissions tab reflects the new status without a full regen."""
+    DOCS_DATA.mkdir(parents=True, exist_ok=True)
+    _write("submissions.json", build_submissions())
+
+
 def build_meta(counts: dict, latest_run_date) -> dict:
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
