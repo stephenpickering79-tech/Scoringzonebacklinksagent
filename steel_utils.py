@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -85,6 +86,74 @@ def steel_api_key() -> str:
 # ---------------------------------------------------------------------------
 
 _SESSIONS_LOG = Path(__file__).parent / "data" / "sessions.jsonl"
+# Runtime overlay the dashboard merges over directory-submissions.md so a real
+# submittal (by the agent or a manual submit_*.py run) shows up on the Submissions
+# tab with a status. Lives on the volume (gitignored); committed dashboard JSON is
+# regenerated from markdown + this overlay each cycle.
+_SUBMISSIONS_LOG = Path(__file__).parent / "data" / "submission_log.json"
+
+
+def _submission_key(name: str, url: str) -> str:
+    """Identity for a submission entry — URL if present, else name (normalized)."""
+    u = (url or "").strip().lower().replace("https://", "").replace("http://", "")
+    u = u.lstrip("www.").rstrip("/")
+    if u:
+        return u
+    return " ".join((name or "").strip().lower().split())
+
+
+def record_submission(
+    name: str,
+    url: str = "",
+    *,
+    status: str = "Submitted",
+    method: str = "auto",
+    notes: str = "",
+    date: str | None = None,
+) -> None:
+    """Record (or update) a real submittal in data/submission_log.json.
+
+    Idempotent: de-dupes by URL (else name); a later call updates the existing
+    entry's status/date/method (latest wins). Best-effort — never raises, so a
+    logging failure can't break a submission. The dashboard merges this over the
+    markdown to show the status on the Submissions tab.
+    """
+    try:
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        entries: list = []
+        if _SUBMISSIONS_LOG.exists():
+            try:
+                loaded = json.loads(_SUBMISSIONS_LOG.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    entries = [e for e in loaded if isinstance(e, dict)]
+            except Exception:
+                entries = []
+
+        key = _submission_key(name, url)
+        record = {
+            "name": name or url,
+            "url": url,
+            "status": status,
+            "method": method,
+            "notes": notes,
+            "date": date,
+            "recorded_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        for i, e in enumerate(entries):
+            if _submission_key(e.get("name", ""), e.get("url", "")) == key:
+                entries[i] = record
+                break
+        else:
+            entries.append(record)
+
+        _SUBMISSIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(_SUBMISSIONS_LOG.parent),
+                                   prefix=".submission_log_", suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, _SUBMISSIONS_LOG)
+    except Exception as e:  # pragma: no cover - logging must never break a run
+        print(f"Warning: could not record submission for {name!r}: {e}")
 
 
 def record_session(
