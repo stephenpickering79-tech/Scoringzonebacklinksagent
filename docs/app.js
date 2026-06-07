@@ -80,27 +80,50 @@
       return;
     }
     const idx = approvalIndex(data);
-    const rows = items.map((it, i) => {
-      // Never a nameless link: fall back to the host when the name is blank.
+    // Split into a decision queue: curated/already-approved vs fresh discoveries to review.
+    const curated = [], discoveries = [];
+    items.forEach((it) => {
+      const isCurated = /target list/i.test(it.source || "") || !!idx[approvalKey(it.name, it.url)];
+      (isCurated ? curated : discoveries).push(it);
+    });
+    const section = (label, list, showStatus) => list.length
+      ? `<div class="group-label">${label} <span>${list.length}</span></div>` + proposalTable(list, idx, showStatus)
+      : "";
+    $("proposals").innerHTML =
+      section("Curated &amp; approved", curated, true) +
+      section("New discoveries — review", discoveries, false);
+    wireApproveButtons($("proposals"));
+  }
+
+  // Build one proposals table. showStatus keeps the small action hint (Submit/Awaiting) for curated
+  // rows; discoveries don't need it (the group header already says "review").
+  function proposalTable(list, idx, showStatus) {
+    const rows = list.map((it, i) => {
       const label = (it.name && it.name.trim()) ? it.name : BL.host(it.url) || it.url || "—";
       const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(label)}</a>` : BL.escapeHtml(label);
       const existing = idx[approvalKey(it.name, it.url)];
       const why = BL.cleanMd(it.justification);
       const whyShort = why.length > 90 ? why.slice(0, 90).trimEnd() + "…" : why;
-      return `<tr class="reveal" style="animation-delay:${i * 0.025}s">
-        <td class="num" style="color:var(--faint)">${i + 1}</td>
-        <td class="t-name">${t}<span class="sub">${BL.escapeHtml(it.recommended_action || "")}</span></td>
-        <td class="num">${BL.escapeHtml(it.score)}</td>
-        <td>${BL.escapeHtml(it.topical_relevance || "—")}</td>
-        <td class="cell-why" title="${BL.escapeHtml(why)}">${BL.escapeHtml(whyShort)}</td>
+      const sub = showStatus && it.recommended_action ? `<span class="sub">${BL.escapeHtml(it.recommended_action)}</span>` : "";
+      return `<tr class="reveal" style="animation-delay:${i * 0.02}s">
+        <td class="t-name">${t}${sub}</td>
+        <td class="cell-score">${scoreChip(it.score)}</td>
         <td>${qualityCell(it)}</td>
+        <td class="cell-why" title="${BL.escapeHtml(why)}">${BL.escapeHtml(whyShort)}</td>
         <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
     }).join("");
-    $("proposals").innerHTML = `<table>
-      <thead><tr><th>#</th><th>Target</th><th>Score</th><th>Relevance</th><th>Why it fits</th><th>Quality</th><th>Action</th></tr></thead>
+    return `<table>
+      <thead><tr><th>Target</th><th class="cell-score">Score</th><th>Quality</th><th>Why it fits</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
-    wireApproveButtons($("proposals"));
+  }
+
+  // Score as a visual signal — tinted by band so the strongest targets pop.
+  function scoreChip(score) {
+    const n = parseInt(score, 10);
+    let band = "low";
+    if (!isNaN(n)) band = n >= 85 ? "high" : n >= 75 ? "mid" : "low";
+    return `<span class="score-chip band-${band}">${BL.escapeHtml(isNaN(n) ? (score || "—") : n)}</span>`;
   }
 
   // Quality cell: tier label coloured by spam risk so risky targets stand out at a glance.
