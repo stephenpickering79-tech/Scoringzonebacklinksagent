@@ -133,6 +133,16 @@
 .approve-btn:disabled { opacity: .6; cursor: default; }
 .approve-btn.approve-err { background: var(--blocked-bg); color: var(--blocked); border-color: var(--blocked); }
 
+/* Secondary action: "Mark submitted" on the Approved tab (outline style) */
+.mark-btn {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--accent-ink); background: transparent; border: 1px solid var(--border-strong);
+  border-radius: 7px; padding: 5px 10px; cursor: pointer; white-space: nowrap;
+  transition: background .12s ease, border-color .12s ease;
+}
+.mark-btn:hover { background: var(--accent-soft); border-color: #eccdbf; }
+.mark-btn:disabled { opacity: .6; cursor: default; }
+
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 14px; }

@@ -150,13 +150,41 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (http.server naming)
         route = urlparse(self.path).path  # ignore query string (?k=token)
-        if route in ("/api/approve", "/api/dismiss"):
+        handlers = {
+            "/api/approve": self._handle_approve,
+            "/api/dismiss": self._handle_dismiss,
+            "/api/mark-submitted": self._handle_mark_submitted,
+        }
+        if route in handlers:
             if not self._token_ok():
                 self._send_json(401, {"ok": False, "error": "unauthorized"})
                 return
-            self._handle_approve() if route == "/api/approve" else self._handle_dismiss()
+            handlers[route]()
         else:
             self._send_json(404, {"ok": False, "error": "unknown endpoint"})
+
+    def _handle_mark_submitted(self) -> None:
+        """Record a target the human submitted manually as 'submitted' (no browser run).
+        Updates the Approve queue + the submission log so both tabs reflect it."""
+        payload = self._read_json() or {}
+        name = (payload.get("name") or "").strip()
+        url = (payload.get("url") or "").strip()
+        if not name and not url:
+            self._send_json(400, {"ok": False, "error": "name or url required"})
+            return
+        try:
+            from steel_utils import record_submission
+            approvals.set_status(name, url, "submitted", "Marked submitted manually.")
+            record_submission(name, url, status="Submitted (manual)", method="manual",
+                              notes="Marked submitted manually from the dashboard.")
+            dashboard.refresh_approvals()
+            dashboard.refresh_submissions()
+        except Exception as e:
+            log(f"mark-submitted failed: {e}")
+            self._send_json(500, {"ok": False, "error": "could not mark submitted"})
+            return
+        log(f"mark-submitted: {name or url}")
+        self._send_json(200, {"ok": True, "name": name or url})
 
     def _handle_approve(self) -> None:
         payload = self._read_json() or {}
