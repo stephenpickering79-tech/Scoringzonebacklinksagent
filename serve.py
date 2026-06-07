@@ -51,8 +51,17 @@ from backlink_agent import approvals          # noqa: E402
 from backlink_agent import dashboard          # noqa: E402
 from backlink_agent import orchestrator       # noqa: E402
 from backlink_agent import research           # noqa: E402
+from backlink_agent import submitter          # noqa: E402
 
 MAX_POST_BYTES = 64_000  # approve/dismiss payloads are tiny; reject anything larger.
+
+
+def _autosubmit_enabled() -> bool:
+    return os.getenv("AUTO_SUBMIT_ENABLED", "").lower() in ("1", "true", "yes")
+
+
+def _autosubmit_dry_run() -> bool:
+    return os.getenv("AUTO_SUBMIT_DRY_RUN", "").lower() in ("1", "true", "yes")
 
 RUN_HOUR = int(os.getenv("RUN_HOUR", "9"))
 PORT = int(os.getenv("PORT", "8080"))
@@ -134,8 +143,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             log(f"approve failed: {e}")
             self._send_json(500, {"ok": False, "error": "could not queue approval"})
             return
-        log(f"approve: {name or url} (new={added})")
-        self._send_json(200, {"ok": True, "added": added, "name": name or url})
+
+        # If auto-submit is enabled, the agent acts on this approval immediately in a
+        # background thread (scripted site → its script; otherwise the generic submitter).
+        # The Approved tab shows "Submitting…" then the final status via live refresh.
+        submitting = False
+        if added and _autosubmit_enabled():
+            dry = _autosubmit_dry_run()
+            log(f"auto-submit: starting background submission for {name or url} (dry={dry})")
+            threading.Thread(
+                target=submitter.run_approval_submission,
+                args=(name, url),
+                kwargs={"dry_run": dry},
+                name=f"submit-{name[:20]}",
+                daemon=True,
+            ).start()
+            submitting = True
+
+        log(f"approve: {name or url} (new={added}, submitting={submitting})")
+        self._send_json(200, {"ok": True, "added": added, "name": name or url, "submitting": submitting})
 
     def _handle_dismiss(self) -> None:
         payload = self._read_json() or {}

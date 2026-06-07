@@ -272,118 +272,47 @@ def main():
 
 
 # ---------------------------------------------------------------------------
-# Approval queue → submission (manual phase, then auto for scripted sites)
+# Approval queue → submission (scheduled backstop)
 # ---------------------------------------------------------------------------
-
-# Sites we can auto-submit (a maintained Steel script exists). Everything else an
-# approver picks gets flagged "needs manual submit". Matched as substrings against
-# the approval's name + url, lower-cased.
-SCRIPTED_SITES = {
-    "submit_eatsleepgolf": ("eat sleep golf", "eatsleepgolf"),
-    "submit_tinylaunch": ("tinylaunch",),
-}
-
-
-def _launch_date() -> date:
-    """First-run date, persisted on the volume so the 7-day manual phase is stable
-    across redeploys. Written once, the first time this runs."""
-    f = DATA_DIR / "launch_date.txt"
-    if f.exists():
-        try:
-            return datetime.strptime(f.read_text(encoding="utf-8").strip(), "%Y-%m-%d").date()
-        except Exception:
-            pass
-    today = datetime.now().date()
-    try:
-        f.write_text(today.isoformat(), encoding="utf-8")
-    except Exception as e:
-        log(f"could not persist launch_date: {e}")
-    return today
-
-
-def _effective_go_live(config) -> date:
-    """Date the auto phase begins: explicit AUTO_SUBMIT_AFTER, else launch + 7 days."""
-    raw = config.get("auto_submit_after", "")
-    if raw:
-        try:
-            return datetime.strptime(raw, "%Y-%m-%d").date()
-        except ValueError:
-            log(f"Ignoring invalid AUTO_SUBMIT_AFTER={raw!r} (want YYYY-MM-DD).")
-    return _launch_date() + timedelta(days=7)
-
-
-def _scripted_submitter(name: str, url: str):
-    """Return the callable submit() for an approved target if a script covers it, else None."""
-    hay = f"{name} {url}".lower()
-    for module_name, needles in SCRIPTED_SITES.items():
-        if any(n in hay for n in needles):
-            try:
-                import importlib
-                sys.path.insert(0, str(BASE_DIR))  # submit_*.py + steel_utils live at repo root
-                return importlib.import_module(module_name).submit
-            except Exception as e:
-                log(f"could not import {module_name}: {e}")
-                return None
-    return None
+# The primary path is immediate: serve.py runs each approval on click via
+# backlink_agent.submitter. This sweep is the backstop — it catches anything still
+# "approved" (e.g. approved while the server was down, or a submission that never
+# started). Same dispatcher (scripted site → its script; else generic submitter).
 
 
 def process_approvals(config) -> None:
-    """Act on the dashboard Approve queue (data/approvals.json).
+    """Submit any still-"approved" targets via the shared dispatcher (backstop sweep).
 
-    Manual phase (auto-submit disabled, or before the go-live date): leave approved
-    items queued for manual submission — nothing is submitted.
-
-    Auto phase (enabled and on/after the go-live date): for each approved target,
-    auto-submit the scripted sites (Eat Sleep Golf, Tinylaunch) and flag everything
-    else "needs_manual_submit". Respects MAX_SUBMISSIONS_PER_DAY. Idempotent —
-    a submitted/flagged item is skipped on later runs (only status=="approved" is processed).
+    Gated by AUTO_SUBMIT_ENABLED. Respects MAX_SUBMISSIONS_PER_DAY. Idempotent — only
+    status=="approved" is processed, and each item's status moves to submitting →
+    submitted / needs_manual_submit / error, so later runs skip it.
     """
     pending = [a for a in approvals_mod.load_approvals() if a.get("status") == "approved"]
     if not pending:
         log("Approvals: none pending.")
         return
 
-    go_live = _effective_go_live(config)
-    today = datetime.now().date()
-    auto = config.get("auto_submit_enabled") and today >= go_live
-
-    if not auto:
-        why = ("auto-submit disabled (AUTO_SUBMIT_ENABLED not set)"
-               if not config.get("auto_submit_enabled") else f"manual phase until {go_live}")
-        log(f"Approvals: {len(pending)} queued — {why}. Leaving for manual submission.")
+    if not config.get("auto_submit_enabled"):
+        log(f"Approvals: {len(pending)} queued — AUTO_SUBMIT_ENABLED not set; leaving for manual/UI.")
         return
 
-    log(f"Approvals: auto phase (go-live {go_live}); processing {len(pending)} approved target(s).")
+    try:
+        from . import submitter as submitter_mod
+    except ImportError:
+        import submitter as submitter_mod  # type: ignore
+
+    dry = config.get("auto_submit_dry_run")
     cap = config["max_submissions_per_day"]
-    submitted = 0
+    log(f"Approvals: backstop sweep — {len(pending)} pending (cap {cap}, dry={dry}).")
+    done = 0
     for a in pending:
+        if done >= cap:
+            log(f"  cap ({cap}) reached — leaving the rest for the next run.")
+            break
         name, url = a.get("name", ""), a.get("url", "")
-        submitter = _scripted_submitter(name, url)
-        if submitter is None:
-            approvals_mod.set_status(name, url, "needs_manual_submit",
-                                     "No auto-submit script for this site yet.")
-            log(f"  flagged needs_manual_submit: {name}")
-            continue
-        if submitted >= cap:
-            log(f"  submission cap ({cap}) reached — leaving '{name}' queued for next run.")
-            continue
-        if config.get("auto_submit_dry_run"):
-            log(f"  [DRY] would auto-submit scripted site: {name}")
-            continue
-        log(f"  auto-submitting scripted site: {name}")
-        try:
-            outcome = submitter()
-        except Exception as e:
-            log(f"  submit error for {name}: {e}")
-            approvals_mod.set_status(name, url, "error", str(e)[:200])
-            continue
-        if outcome == "submitted":
-            approvals_mod.set_status(name, url, "submitted")
-            submitted += 1
-            log(f"  submitted: {name}")
-        else:
-            approvals_mod.set_status(name, url, "error", f"submitter returned '{outcome}'")
-            log(f"  submit not completed ({outcome}): {name}")
+        status, detail = submitter_mod.run_approval_submission(name, url, dry_run=dry)
+        if status in ("submitted", "needs_manual_submit", "error"):
+            done += 1
 
 
 def _action_from_status(status):
