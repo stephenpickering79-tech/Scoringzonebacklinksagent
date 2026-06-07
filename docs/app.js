@@ -4,6 +4,7 @@
   let DATA = null;
   const TITLES = {
     output: ["Output", "Latest proposals"],
+    approved: ["Approved", "Approved — to submit"],
     sessions: ["Sessions", "Steel automation runs"],
     submissions: ["Submissions", "Directory backlinks"],
   };
@@ -13,11 +14,26 @@
     renderKpis(data);
     renderProposals(data);
     renderRuns(data);
+    renderApproved(data);
     renderSessions(data);
     renderSubmissions(data, { key: "dr", dir: "desc" });
     renderChrome(data);
     wireNav();
   });
+
+  // Identity for a target, mirroring the backend's de-dupe (URL if present, else name).
+  function approvalKey(name, url) {
+    const u = (url || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+    if (u) return u;
+    return (name || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  // Map of approvalKey -> approval record, for quick "already approved?" lookups.
+  function approvalIndex(data) {
+    const idx = {};
+    (data.approvals || []).forEach((a) => { idx[approvalKey(a.name, a.url)] = a; });
+    return idx;
+  }
 
   function renderChrome(data) {
     const when = data.meta && data.meta.generated_at ? BL.fmtDateTime(data.meta.generated_at) : "—";
@@ -31,7 +47,7 @@
       items.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       const view = btn.dataset.view;
-      ["output", "sessions", "submissions"].forEach((v) => {
+      ["output", "approved", "sessions", "submissions"].forEach((v) => {
         $("view-" + v).classList.toggle("hidden", v !== view);
       });
       $("crumb").textContent = TITLES[view][0];
@@ -61,18 +77,103 @@
       $("proposals").innerHTML = `<div class="empty">Awaiting the first propose run</div>`;
       return;
     }
+    const idx = approvalIndex(data);
     const rows = items.map((it, i) => {
       const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(it.name)}</a>` : BL.escapeHtml(it.name);
+      const existing = idx[approvalKey(it.name, it.url)];
       return `<tr class="reveal" style="animation-delay:${i * 0.025}s">
         <td class="num" style="color:var(--faint)">${i + 1}</td>
         <td class="t-name">${t}<span class="sub">${BL.escapeHtml(it.recommended_action || "")}</span></td>
         <td class="num">${BL.escapeHtml(it.score)}</td>
         <td>${BL.escapeHtml(it.topical_relevance || "—")}</td>
         <td class="cell-why">${BL.escapeHtml(BL.cleanMd(it.justification))}</td>
+        <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
     }).join("");
     $("proposals").innerHTML = `<table>
-      <thead><tr><th>#</th><th>Target</th><th>Score</th><th>Relevance</th><th>Why it fits</th></tr></thead>
+      <thead><tr><th>#</th><th>Target</th><th>Score</th><th>Relevance</th><th>Why it fits</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+    wireApproveButtons($("proposals"));
+  }
+
+  // The Approve cell: a button if not yet queued, else a status badge.
+  function approveControl(it, existing) {
+    if (existing) {
+      return `<span class="badge ${approvalBadgeClass(existing.status)}">${BL.escapeHtml(approvalStatusLabel(existing.status))}</span>`;
+    }
+    return `<button class="approve-btn" data-name="${BL.escapeHtml(it.name)}" data-url="${BL.escapeHtml(it.url || "")}">Approve</button>`;
+  }
+
+  function approvalStatusLabel(status) {
+    const map = {
+      approved: "✓ Approved",
+      submitted: "✓ Submitted",
+      needs_manual_submit: "Manual submit",
+      error: "Error",
+    };
+    return map[status] || status || "Approved";
+  }
+
+  function approvalBadgeClass(status) {
+    if (status === "submitted") return "live";
+    if (status === "error") return "blocked";
+    if (status === "needs_manual_submit") return "default";
+    return "pending"; // approved / queued
+  }
+
+  function wireApproveButtons(scope) {
+    scope.querySelectorAll(".approve-btn").forEach((btn) => {
+      btn.addEventListener("click", () => onApprove(btn));
+    });
+  }
+
+  function onApprove(btn) {
+    const name = btn.dataset.name || "";
+    const url = btn.dataset.url || "";
+    btn.disabled = true;
+    btn.textContent = "Approving…";
+    fetch("api/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, url }),
+    })
+      .then((res) => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .then(() => {
+        // Reflect locally without a full reload: add to the in-memory queue, re-render.
+        const key = approvalKey(name, url);
+        if (!(DATA.approvals || []).some((a) => approvalKey(a.name, a.url) === key)) {
+          DATA.approvals = (DATA.approvals || []).concat([{ name, url, status: "approved", approved_at: new Date().toISOString() }]);
+        }
+        renderProposals(DATA);
+        renderApproved(DATA);
+      })
+      .catch((e) => {
+        btn.disabled = false;
+        btn.textContent = "Approve";
+        btn.classList.add("approve-err");
+        btn.title = "Could not approve (is the live server running?): " + e.message;
+      });
+  }
+
+  function renderApproved(data) {
+    const items = (data.approvals || []).slice();
+    $("approvedMeta").textContent = items.length ? items.length + " queued" : "nothing approved yet";
+    if (!items.length) {
+      $("approved").innerHTML = `<div class="empty">No approvals yet — hit Approve on a proposal in Output</div>`;
+      return;
+    }
+    const rows = items.map((a, i) => {
+      const name = a.url ? `<a href="${BL.escapeHtml(a.url)}" target="_blank" rel="noopener">${BL.escapeHtml(a.name)}</a>` : BL.escapeHtml(a.name);
+      const when = a.updated_at || a.approved_at;
+      return `<tr class="reveal" style="animation-delay:${i * 0.02}s">
+        <td class="t-name">${name}</td>
+        <td><span class="badge ${approvalBadgeClass(a.status)}">${BL.escapeHtml(approvalStatusLabel(a.status))}</span></td>
+        <td class="cell-date">${BL.fmtDateTime(when)}</td>
+        <td class="cell-notes">${BL.escapeHtml(a.detail || "")}</td>
+      </tr>`;
+    }).join("");
+    $("approved").innerHTML = `<table>
+      <thead><tr><th>Target</th><th>Status</th><th>When</th><th>Detail</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
   }
 

@@ -75,7 +75,10 @@ CONTACT_EMAIL = "stephenpickering79@gmail.com"
 DONATION_NOTE = "Happy to support the charitable partners with a small donation."
 
 
-def main():
+def submit() -> str:
+    """Run the Eat Sleep Golf submission. Returns the outcome string
+    ("submitted" | "aborted") so the orchestrator can record it. Raises only on
+    hard failures (e.g. missing STEEL_API_KEY), which the caller catches."""
     print("=== Scoring Zone — Eat Sleep Golf Directory Submission (Steel) ===")
     print("Starting Steel session with CAPTCHA solving...")
 
@@ -180,7 +183,7 @@ def main():
             print("inspect the real field names, and update the selectors. Nothing was submitted.")
             record_session(session_id, target=TARGET_URL, mode=MODE,
                            outcome="aborted", screenshots=screenshots)
-            return
+            return "aborted"
         if core_ok < len(filled):
             missing = [k for k, ok in filled.items() if not ok]
             print(f"WARNING: some core fields were not filled: {missing}. Proceeding, but verify the result screenshot.")
@@ -243,6 +246,12 @@ def main():
         print("Check the result screenshot and session viewer (if still active).")
         print("If a donation step appeared, you can complete it manually for faster/better listing.")
         print("Next: Update directory-submissions.md with today's date and status.")
+
+        return "submitted" if submitted else "aborted"
+
+
+def main():
+    return submit()
 
 
 if __name__ == "__main__":

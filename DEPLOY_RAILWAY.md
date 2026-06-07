@@ -58,6 +58,27 @@ service fits inside Railway's included $5 usage).
   via Steel. Run it on demand either locally or with the Railway CLI:
   `railway run python submit_eatsleepgolf.py`.
 
+## The "Approve" button (queue → auto-submit)
+
+Each proposal on the **Output** tab has an **Approve** button. Clicking it queues that target on the
+**Approved** tab — it does **not** submit anything by itself. How the queue is then handled:
+
+- **Manual phase (default).** Approved targets just sit in the Approved list for you to submit by hand.
+  This is the behaviour out of the box — nothing is ever auto-submitted unless you turn it on.
+- **Auto phase (opt-in).** When you're ready, set these Railway variables:
+  - `AUTO_SUBMIT_ENABLED` = `true` — the master switch (leave unset/false to stay fully manual).
+  - `AUTO_SUBMIT_AFTER` = `YYYY-MM-DD` — the go-live date. Before it, approvals only queue; on/after it
+    the daily run auto-submits. If you leave it blank, it defaults to **first-run + 7 days**.
+  - `AUTO_SUBMIT_DRY_RUN` = `true` *(optional)* — log intended submissions without running them, for a
+    safe dry test.
+- **Scope:** auto-submit only covers the **scripted sites** (Eat Sleep Golf, Tinylaunch). Any other
+  approved target is flagged **"needs manual submit"** on the Approved tab — submit those by hand until
+  a per-site script exists. Each auto-submit also shows up on the **Sessions** tab.
+
+> The Approve buttons are unauthenticated (the page is public) — that's a deliberate choice. The risk is
+> limited because a click only *queues*; the agent decides on its schedule whether to act, and only ever
+> auto-submits to the two scripted sites after the go-live date you set.
+
 ## Notes
 - Code still lives in **GitHub** (for safekeeping + version history). Railway just *runs* it and
   redeploys whenever `main` changes. You don't need the GitHub **Actions** or **Issues** tabs.

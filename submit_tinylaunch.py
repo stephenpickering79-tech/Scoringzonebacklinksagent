@@ -65,7 +65,10 @@ TAGS = "Golf App, Short Game Training, Putting Practice, Golf Practice Tools, Go
 FOUNDER = "Stephen Pickering"
 EMAIL = "stephenpickering79@gmail.com"
 
-def main():
+def submit() -> str:
+    """Run the Tinylaunch submission. Returns the outcome string
+    ("submitted" | "aborted") so the orchestrator can record it. Raises only on
+    hard failures (e.g. missing STEEL_API_KEY), which the caller catches."""
     print("=== Tinylaunch Submission (Steel) ===")
     print("Starting Steel session...")
 
@@ -168,7 +171,7 @@ def main():
             print("update the selectors. Nothing was submitted.")
             record_session(sid, target=TARGET_URL, mode=MODE,
                            outcome="aborted", screenshots=screenshots)
-            return
+            return "aborted"
         if core_ok < len(filled):
             missing = [k for k, ok in filled.items() if not ok]
             print(f"WARNING: some core fields were not filled: {missing}. Proceeding — verify the result screenshot.")
@@ -212,6 +215,13 @@ def main():
         print("\n=== Tinylaunch submission attempt complete ===")
         print("Review screenshots and session viewer. If account creation or additional steps required, complete manually and note in tracker.")
         print("Next: Update directory-submissions.md with status/date.")
+
+        return "submitted" if submitted else "aborted"
+
+
+def main():
+    return submit()
+
 
 if __name__ == "__main__":
     main()

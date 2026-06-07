@@ -27,7 +27,7 @@ Usage (local testing):
 import os
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 # Load .env file if present (for local development with keys)
@@ -41,6 +41,7 @@ except ImportError:
 # Handle both "python -m backlink_agent.orchestrator" (package) and direct script run.
 try:
     from . import research as research_mod
+    from . import approvals as approvals_mod
 except ImportError:
     # Direct script run: add dirs to path for "import research" and "import steel_utils" (from inside research).
     import sys
@@ -48,6 +49,7 @@ except ImportError:
     sys.path.insert(0, str(pkg_dir))           # for "import research"
     sys.path.insert(0, str(pkg_dir.parent))    # for "import steel_utils" (sibling to backlink_agent)
     import research as research_mod
+    import approvals as approvals_mod
 
 BASE_DIR = Path(__file__).parent.parent
 LOGS_DIR = BASE_DIR / "logs"
@@ -74,6 +76,14 @@ def load_config():
         "mode": os.getenv("AGENT_MODE", "propose").lower(),
         "approved_targets": os.getenv("APPROVED_TARGETS", "").strip(),
         "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", "").strip(),
+        # Dashboard "Approve" queue → auto-submit controls (see process_approvals).
+        # Master switch — OFF by default so nothing is ever auto-submitted until Stephen
+        # deliberately turns it on in Railway. While off, approvals just queue for manual action.
+        "auto_submit_enabled": os.getenv("AUTO_SUBMIT_ENABLED", "false").lower() in ("1", "true", "yes"),
+        # Go-live date (YYYY-MM-DD). If unset, defaults to launch_date + 7 days (the manual phase).
+        "auto_submit_after": os.getenv("AUTO_SUBMIT_AFTER", "").strip(),
+        # Testing override: in the auto phase, log intended submits instead of running them.
+        "auto_submit_dry_run": os.getenv("AUTO_SUBMIT_DRY_RUN", "false").lower() in ("1", "true", "yes"),
     }
 
 
@@ -212,6 +222,13 @@ def main():
         with open(summary_path, "w") as f:
             json.dump(summary, f, indent=2)
 
+        # Process the dashboard Approve queue (manual phase = queue only; auto phase =
+        # submit scripted sites, flag the rest). Never lets a queue error break the run.
+        try:
+            process_approvals(config)
+        except Exception as e:
+            log(f"process_approvals failed: {e}")
+
         log("PROPOSE run complete. A GitHub Issue should be created by the workflow for human review.")
         log("Nothing was submitted. Human must manually trigger with mode=submit after review.")
 
@@ -243,6 +260,121 @@ def main():
         log(f"Unknown AGENT_MODE: {mode}. Valid values: propose, submit")
 
     log("=== End of Daily Backlink Agent Run ===")
+
+
+# ---------------------------------------------------------------------------
+# Approval queue → submission (manual phase, then auto for scripted sites)
+# ---------------------------------------------------------------------------
+
+# Sites we can auto-submit (a maintained Steel script exists). Everything else an
+# approver picks gets flagged "needs manual submit". Matched as substrings against
+# the approval's name + url, lower-cased.
+SCRIPTED_SITES = {
+    "submit_eatsleepgolf": ("eat sleep golf", "eatsleepgolf"),
+    "submit_tinylaunch": ("tinylaunch",),
+}
+
+
+def _launch_date() -> date:
+    """First-run date, persisted on the volume so the 7-day manual phase is stable
+    across redeploys. Written once, the first time this runs."""
+    f = DATA_DIR / "launch_date.txt"
+    if f.exists():
+        try:
+            return datetime.strptime(f.read_text(encoding="utf-8").strip(), "%Y-%m-%d").date()
+        except Exception:
+            pass
+    today = datetime.now().date()
+    try:
+        f.write_text(today.isoformat(), encoding="utf-8")
+    except Exception as e:
+        log(f"could not persist launch_date: {e}")
+    return today
+
+
+def _effective_go_live(config) -> date:
+    """Date the auto phase begins: explicit AUTO_SUBMIT_AFTER, else launch + 7 days."""
+    raw = config.get("auto_submit_after", "")
+    if raw:
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            log(f"Ignoring invalid AUTO_SUBMIT_AFTER={raw!r} (want YYYY-MM-DD).")
+    return _launch_date() + timedelta(days=7)
+
+
+def _scripted_submitter(name: str, url: str):
+    """Return the callable submit() for an approved target if a script covers it, else None."""
+    hay = f"{name} {url}".lower()
+    for module_name, needles in SCRIPTED_SITES.items():
+        if any(n in hay for n in needles):
+            try:
+                import importlib
+                sys.path.insert(0, str(BASE_DIR))  # submit_*.py + steel_utils live at repo root
+                return importlib.import_module(module_name).submit
+            except Exception as e:
+                log(f"could not import {module_name}: {e}")
+                return None
+    return None
+
+
+def process_approvals(config) -> None:
+    """Act on the dashboard Approve queue (data/approvals.json).
+
+    Manual phase (auto-submit disabled, or before the go-live date): leave approved
+    items queued for manual submission — nothing is submitted.
+
+    Auto phase (enabled and on/after the go-live date): for each approved target,
+    auto-submit the scripted sites (Eat Sleep Golf, Tinylaunch) and flag everything
+    else "needs_manual_submit". Respects MAX_SUBMISSIONS_PER_DAY. Idempotent —
+    a submitted/flagged item is skipped on later runs (only status=="approved" is processed).
+    """
+    pending = [a for a in approvals_mod.load_approvals() if a.get("status") == "approved"]
+    if not pending:
+        log("Approvals: none pending.")
+        return
+
+    go_live = _effective_go_live(config)
+    today = datetime.now().date()
+    auto = config.get("auto_submit_enabled") and today >= go_live
+
+    if not auto:
+        why = ("auto-submit disabled (AUTO_SUBMIT_ENABLED not set)"
+               if not config.get("auto_submit_enabled") else f"manual phase until {go_live}")
+        log(f"Approvals: {len(pending)} queued — {why}. Leaving for manual submission.")
+        return
+
+    log(f"Approvals: auto phase (go-live {go_live}); processing {len(pending)} approved target(s).")
+    cap = config["max_submissions_per_day"]
+    submitted = 0
+    for a in pending:
+        name, url = a.get("name", ""), a.get("url", "")
+        submitter = _scripted_submitter(name, url)
+        if submitter is None:
+            approvals_mod.set_status(name, url, "needs_manual_submit",
+                                     "No auto-submit script for this site yet.")
+            log(f"  flagged needs_manual_submit: {name}")
+            continue
+        if submitted >= cap:
+            log(f"  submission cap ({cap}) reached — leaving '{name}' queued for next run.")
+            continue
+        if config.get("auto_submit_dry_run"):
+            log(f"  [DRY] would auto-submit scripted site: {name}")
+            continue
+        log(f"  auto-submitting scripted site: {name}")
+        try:
+            outcome = submitter()
+        except Exception as e:
+            log(f"  submit error for {name}: {e}")
+            approvals_mod.set_status(name, url, "error", str(e)[:200])
+            continue
+        if outcome == "submitted":
+            approvals_mod.set_status(name, url, "submitted")
+            submitted += 1
+            log(f"  submitted: {name}")
+        else:
+            approvals_mod.set_status(name, url, "error", f"submitter returned '{outcome}'")
+            log(f"  submit not completed ({outcome}): {name}")
 
 
 def _action_from_status(status):
