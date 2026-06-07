@@ -103,13 +103,13 @@
       const t = it.url ? `<a href="${BL.escapeHtml(it.url)}" target="_blank" rel="noopener">${BL.escapeHtml(label)}</a>` : BL.escapeHtml(label);
       const existing = idx[approvalKey(it.name, it.url)];
       const why = BL.cleanMd(it.justification);
-      const whyShort = why.length > 90 ? why.slice(0, 90).trimEnd() + "…" : why;
+      const whyShort = why.length > 160 ? why.slice(0, 160).trimEnd() + "…" : why;
       const sub = showStatus && it.recommended_action ? `<span class="sub">${BL.escapeHtml(it.recommended_action)}</span>` : "";
       return `<tr class="reveal" style="animation-delay:${i * 0.02}s">
         <td class="t-name">${t}${sub}</td>
         <td class="cell-score">${scoreChip(it.score)}</td>
         <td>${qualityCell(it)}</td>
-        <td class="cell-why" title="${BL.escapeHtml(why)}">${BL.escapeHtml(whyShort)}</td>
+        <td class="cell-why" title="${BL.escapeHtml(why)}"><span class="why-text">${BL.escapeHtml(whyShort)}</span></td>
         <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
     }).join("");

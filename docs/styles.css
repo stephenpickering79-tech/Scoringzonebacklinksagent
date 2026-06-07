@@ -73,14 +73,16 @@
 .t-name a { color: var(--ink); }
 .t-name a:hover { color: var(--accent-ink); }
 .cell-notes { color: var(--muted); max-width: 34ch; }
-.cell-why {
-  color: var(--muted); max-width: 260px;
+/* The cell stays a normal table-cell (so row borders stay continuous); the clamp goes on the
+   inner span — applying display:-webkit-box to the <td> itself breaks the table layout. */
+.cell-why { color: var(--muted); min-width: 320px; }
+.cell-why .why-text {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 /* Output (proposals) — grouped decision queue, compact + scannable */
-#proposals th, #proposals td { padding: 7px 10px; }
+#proposals th, #proposals td { padding: 10px 12px; vertical-align: middle; }
 #proposals .cell-approve { white-space: nowrap; text-align: right; }
 #proposals table { margin-bottom: 4px; }
 #proposals tbody tr:nth-child(even) td { background: #fcfbf7; }   /* subtle zebra */
