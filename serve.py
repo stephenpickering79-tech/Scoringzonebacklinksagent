@@ -154,6 +154,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         log(f"dismiss: {phrase} (new={added})")
         self._send_json(200, {"ok": True, "added": added, "name": phrase})
 
+    def end_headers(self):
+        # No-cache so a deploy's new index.html/app.js/styles are always picked up — browsers
+        # otherwise keep stale JS and the dashboard looks unchanged after an update.
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
+
     def log_message(self, fmt, *args):  # quieter access log, routed through our logger
         log("%s - %s" % (self.address_string(), fmt % args))
 

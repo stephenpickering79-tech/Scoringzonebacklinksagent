@@ -25,7 +25,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -330,17 +330,51 @@ def _looks_like_opportunity(url: str, anchor: str, page_host: str) -> bool:
 
 SERPER_URL = "https://google.serper.dev/search"
 
-# Submission-intent queries — bias toward pages that ACCEPT listings, not listicles.
-SEARCH_QUERIES = [
+# Submission-intent query POOL — bias toward pages that ACCEPT listings, not listicles. Covers
+# both buckets Stephen wants: golf/sports/fitness niche AND quality general maker/SaaS directories.
+# A rotating window runs each day (see _todays_queries) so the agent doesn't re-hit the same top
+# results every run and gradually covers the whole pool.
+SEARCH_QUERY_POOL = [
+    # --- Golf / sports / fitness niche ---
     "submit your golf app to directory",
     "golf app directory add your app",
     "golf training tools submit your site",
     "golf coaching resources submit your link",
     "putting training aids directory submit",
-    "sports tech startup directory submit your startup",
-    "submit your SaaS directory dofollow",
     "best golf apps \"add your app\"",
+    "golf technology directory submit your product",
+    "sports tech startup directory submit your startup",
+    "fitness app directory submit your app",
+    "golf blog \"write for us\" resources",
+    "golf coach resources \"list your\" tool",
+    "sports app directory add your listing",
+    # --- Quality general / maker / SaaS directories ---
+    "submit your SaaS directory dofollow",
+    "submit your startup directory dofollow",
+    "best indie maker directories submit your product",
+    "SaaS directory submit your product 2026",
+    "launch your app directory submit",
+    "submit your app directory get listed",
+    "startup directory \"add your startup\" free dofollow",
+    "best directories to submit your app 2026",
+    "product launch directory submit your startup",
+    "app of the day directory submit",
+    "indie hackers tool directory submit",
+    "new product directory \"submit\" dofollow backlink",
 ]
+
+# How many of the pool to run per day. The window rotates by date so coverage spreads over ~3 days.
+QUERIES_PER_RUN = 8
+
+
+def _todays_queries() -> list[str]:
+    """A rotating slice of the query pool, keyed off the date so different queries run each day
+    (avoids re-finding the same top results every run, and covers the whole pool over time)."""
+    pool = SEARCH_QUERY_POOL
+    if len(pool) <= QUERIES_PER_RUN:
+        return list(pool)
+    start = (date.today().toordinal() * QUERIES_PER_RUN) % len(pool)
+    return [pool[(start + i) % len(pool)] for i in range(QUERIES_PER_RUN)]
 
 # Strong directory/submission signals — required in the TITLE or URL (not just the snippet),
 # which is far more precise: it keeps "Submit your SaaS", "150 Directories to list…", and drops
@@ -360,6 +394,15 @@ _BAD_PATH = ("/articles/", "/newsletter", "/showcase", "/help", "/support", "tax
              "/on-nbc", "/faq", "/company/")
 
 
+# Noise that LOOKS like a directory result but isn't a submission target: directory *builders*,
+# how-to/tutorial articles, templates, and editorial blog/guide posts. Matched in title or URL.
+_SEARCH_NOISE = (
+    "how to", "how-to", "website builder", "directory builder", " builder", "app template",
+    "template", "wordpress", "/tutorial", " module", "best ways to use", "create a ", "build a ",
+    "/blog/", "/guides/", "/guide/", "/post/", "lessons from", "mistakes", "why ", "ultimate guide",
+)
+
+
 def _search_result_is_opportunity(title: str, snippet: str, link: str) -> bool:
     host = urlparse(link).netloc.lower().lstrip("www.")
     if not host or any(s in host for s in _SHARE_HOSTS) or any(b in host for b in _EXCLUDE_HOSTS):
@@ -369,8 +412,11 @@ def _search_result_is_opportunity(title: str, snippet: str, link: str) -> bool:
     low = link.lower()
     if low.endswith(".pdf") or any(b in low for b in _BAD_PATH):
         return False
-    # Require a directory/submission signal in the TITLE or URL (precise), not the snippet alone.
+    # Drop builder/how-to/template/editorial noise that merely mentions "directory".
     hay = f"{title} {link}".lower()
+    if any(n in hay for n in _SEARCH_NOISE):
+        return False
+    # Require a directory/submission signal in the TITLE or URL (precise), not the snippet alone.
     return any(h in hay for h in _SEARCH_HINTS)
 
 
@@ -405,8 +451,8 @@ def discover_via_search(known: set, max_items: int) -> tuple[list[dict], int, in
     seen: set = set()
     queries_run = 0
     errors = 0
-    cap = min(max_items, 20)
-    for query in SEARCH_QUERIES:
+    cap = min(max_items, 25)
+    for query in _todays_queries():
         if len(out) >= cap:
             break
         try:
