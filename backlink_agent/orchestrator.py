@@ -324,6 +324,39 @@ def _action_from_status(status):
     return "Review"
 
 
+# Cheap, no-network spam/quality signals from the text we already have. Used as a fallback when
+# the LLM doesn't return spam_risk/quality_tier, and as a backstop so every candidate has a signal.
+_SPAM_CUES = (
+    "submit to", "directory submission service", "auto directory", "free directory", "link farm",
+    "500 directories", "1000 directories", "100+ directories", "list of", "ultimate list",
+)
+_GOLF_CUES = ("golf", "putting", "short game", "chipping", "wedge", "sports tech", "fitness")
+
+
+def _heuristic_quality(candidate) -> tuple[str, str]:
+    """Return (spam_risk, quality_tier) from URL/title/source text. Conservative fallback."""
+    import re as _re
+    hay = " ".join(str(candidate.get(k, "")) for k in ("name", "url", "title", "source", "notes")).lower()
+    listicle = bool(_re.search(r"\b\d{2,}\+?\s*(directories|sites|places|tools)\b", hay))
+    high = listicle or any(c in hay for c in _SPAM_CUES)
+    golf = any(c in hay for c in _GOLF_CUES)
+    if high:
+        return "high", ("Tier 3 filler" if golf else "Avoid")
+    if golf:
+        return "low", "Tier 1 niche"
+    return "medium", "Tier 2 quality general"
+
+
+def _ensure_quality_fields(scored: list) -> list:
+    """Guarantee every scored item has spam_risk + quality_tier (LLM value wins; heuristic fills gaps)."""
+    for s in scored:
+        if not s.get("spam_risk") or not s.get("quality_tier"):
+            hr, ht = _heuristic_quality(s)
+            s["spam_risk"] = s.get("spam_risk") or hr
+            s["quality_tier"] = s.get("quality_tier") or ht
+    return scored
+
+
 def score_seeded_targets(seeded):
     """Convert pre-vetted curated targets into shortlist entries directly (no score cutoff).
 
@@ -342,6 +375,8 @@ def score_seeded_targets(seeded):
             "recommended_action": _action_from_status(status),
             "source": c.get("source", "Your target list"),
             "submission_method": "",
+            "spam_risk": "low",          # curated = you vetted it
+            "quality_tier": "Curated",
             "notes": status,
         })
     out.sort(key=lambda x: x["score"], reverse=True)
@@ -358,6 +393,7 @@ def score_discoveries_for_review(candidates):
     out = []
     for c in candidates:
         why = (c.get("description") or c.get("title") or "").strip().replace("\n", " ")
+        spam_risk, quality_tier = _heuristic_quality(c)
         out.append({
             "name": c.get("name") or c.get("url", "") or "Unknown",
             "url": c.get("url", ""),
@@ -367,6 +403,8 @@ def score_discoveries_for_review(candidates):
             "recommended_action": "Review — new find",
             "source": c.get("source", "web search"),
             "submission_method": "",
+            "spam_risk": spam_risk,
+            "quality_tier": quality_tier,
             "notes": c.get("method", ""),
         })
     return out
@@ -477,11 +515,13 @@ Now follow the instructions below and score this candidate.
                 "recommended_action": data.get("recommended_action", "Review manually"),
                 "source": c.get("source", ""),
                 "submission_method": data.get("submission_method", ""),
+                "spam_risk": str(data.get("spam_risk", "")).strip().lower(),
+                "quality_tier": str(data.get("quality_tier", "")).strip(),
                 "notes": data.get("notes", "")
             })
 
     scored.sort(key=lambda x: x["score"], reverse=True)
-    return scored
+    return _ensure_quality_fields(scored)
 
 
 if __name__ == "__main__":

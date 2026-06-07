@@ -89,13 +89,26 @@
         <td class="num">${BL.escapeHtml(it.score)}</td>
         <td>${BL.escapeHtml(it.topical_relevance || "—")}</td>
         <td class="cell-why">${BL.escapeHtml(BL.cleanMd(it.justification))}</td>
+        <td>${qualityCell(it)}</td>
         <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
     }).join("");
     $("proposals").innerHTML = `<table>
-      <thead><tr><th>#</th><th>Target</th><th>Score</th><th>Relevance</th><th>Why it fits</th><th>Action</th></tr></thead>
+      <thead><tr><th>#</th><th>Target</th><th>Score</th><th>Relevance</th><th>Why it fits</th><th>Quality</th><th>Action</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
     wireApproveButtons($("proposals"));
+  }
+
+  // Quality cell: tier label coloured by spam risk so risky targets stand out at a glance.
+  function qualityCell(it) {
+    const tier = it.quality_tier || "—";
+    const risk = (it.spam_risk || "").toLowerCase();
+    let cls = "default";
+    if (risk === "low" || tier === "Curated") cls = "live";
+    else if (risk === "medium") cls = "pending";
+    else if (risk === "high" || tier === "Avoid") cls = "blocked";
+    const riskNote = risk ? ` · ${risk} risk` : "";
+    return `<span class="badge ${cls}" title="${BL.escapeHtml(tier + riskNote)}">${BL.escapeHtml(tier)}</span>`;
   }
 
   // The Approve cell: a button if not yet queued, else a status badge.
