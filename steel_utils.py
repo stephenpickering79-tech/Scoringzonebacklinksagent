@@ -115,6 +115,68 @@ def _submission_key(name: str, url: str) -> str:
     return " ".join((name or "").strip().lower().split())
 
 
+# --- submission confirmation -------------------------------------------------
+# After a submit-click, the result page usually says SOMETHING. These patterns turn
+# that into confirmed/error/unconfirmed so a failed submit is never silently logged
+# as a success. Error patterns are checked FIRST (more specific than success words).
+SUCCESS_PATTERNS = (
+    "thank you", "thanks for", "submission received", "has been received",
+    "successfully submitted", "submitted successfully", "we'll review",
+    "we will review", "under review", "we'll be in touch", "now listed",
+    "success!", "your listing",
+)
+ERROR_PATTERNS = (
+    "there was an error", "there was a problem", "please try again",
+    "is required", "please fill", "invalid email", "could not be submitted",
+    "submission failed", "something went wrong",
+)
+
+
+def match_confirmation_text(body_text: str) -> tuple[str, str]:
+    """Classify a result page's text. Returns (confirmation, evidence) where
+    confirmation ∈ {"confirmed", "error", "unconfirmed"} and evidence is the
+    matched phrase with ~80 chars of surrounding context ("" when unconfirmed)."""
+    low = (body_text or "").lower()
+
+    def _context(phrase: str) -> str:
+        i = low.find(phrase)
+        start = max(0, i - 20)
+        snippet = (body_text or "")[start:i + len(phrase) + 60]
+        return " ".join(snippet.split())
+
+    for p in ERROR_PATTERNS:
+        if p in low:
+            return "error", _context(p)
+    for p in SUCCESS_PATTERNS:
+        if p in low:
+            return "confirmed", _context(p)
+    return "unconfirmed", ""
+
+
+def detect_submission_confirmation(page, *, url_before: str = "") -> tuple[str, str]:
+    """Detect whether a just-clicked submission actually succeeded. Never raises.
+
+    1. Classify the visible body text (success/error phrases).
+    2. If unconfirmed, treat the form having disappeared — or a redirect away from
+       the submit URL — as confirmation (many sites just swap to a bare landing page).
+    """
+    try:
+        text = page.inner_text("body")[:6000]
+    except Exception:
+        text = ""
+    confirmation, evidence = match_confirmation_text(text)
+    if confirmation != "unconfirmed":
+        return confirmation, evidence
+    try:
+        if url_before and page.url.split("#")[0] != url_before.split("#")[0]:
+            return "confirmed", f"redirected to {page.url}"
+        if page.query_selector("form input, form textarea") is None:
+            return "confirmed", "form no longer present after submit"
+    except Exception:
+        pass
+    return "unconfirmed", "no success or error text detected"
+
+
 def record_submission(
     name: str,
     url: str = "",
@@ -123,13 +185,21 @@ def record_submission(
     method: str = "auto",
     notes: str = "",
     date: str | None = None,
+    confirmation: str | None = None,
+    evidence: str | None = None,
+    listing_url: str | None = None,
 ) -> None:
     """Record (or update) a real submittal in data/submission_log.json.
 
-    Idempotent: de-dupes by URL (else name); a later call updates the existing
-    entry's status/date/method (latest wins). Best-effort — never raises, so a
-    logging failure can't break a submission. The dashboard merges this over the
-    markdown to show the status on the Submissions tab.
+    Idempotent: de-dupes by URL (else name); a later call MERGES over the existing
+    entry (latest fields win, older ones like the original method/confirmation are
+    kept). Best-effort — never raises, so a logging failure can't break a
+    submission. The dashboard merges this over the markdown to show the status on
+    the Submissions tab.
+
+    confirmation/evidence: post-submit confirmation detection result (see
+    detect_submission_confirmation). listing_url: the page where the backlink is
+    actually live (set by the live-checker once found).
     """
     try:
         date = date or datetime.now().strftime("%Y-%m-%d")
@@ -148,13 +218,20 @@ def record_submission(
             "url": url,
             "status": status,
             "method": method,
-            "notes": notes,
             "date": date,
             "recorded_at": datetime.now().isoformat(timespec="seconds"),
         }
+        if notes:  # don't blank existing notes on a later merge
+            record["notes"] = notes
+        if confirmation is not None:
+            record["confirmation"] = confirmation
+        if evidence is not None:
+            record["evidence"] = evidence
+        if listing_url is not None:
+            record["listing_url"] = listing_url
         for i, e in enumerate(entries):
             if _submission_key(e.get("name", ""), e.get("url", "")) == key:
-                entries[i] = record
+                entries[i] = {**e, **record}
                 break
         else:
             entries.append(record)

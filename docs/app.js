@@ -321,7 +321,21 @@
       <tbody>${rows}</tbody></table>`;
   }
 
+  let _subSort = { key: "dr", dir: "desc" };
+
+  // A "Check now" live-link check makes sense for rows that were submitted but
+  // aren't confirmed live (or where the link was lost) — and we need a URL to check.
+  function canCheckLive(x) {
+    if (!x.url) return false;
+    const cls = BL.statusClass(x.status);
+    const s = (x.status || "").toLowerCase();
+    if (cls === "live") return false;
+    if (s.includes("not submitted") || s.includes("to submit") || s.includes("needs manual") || s.includes("submitting")) return false;
+    return cls === "pending" || s.includes("lost") || s.includes("no link");
+  }
+
   function renderSubmissions(data, sort) {
+    _subSort = sort;
     const cols = [
       { key: "name", label: "Directory" },
       { key: "date", label: "Date" },
@@ -336,18 +350,22 @@
       const active = c.key === sort.key;
       const arrow = active ? (sort.dir === "asc" ? "↑" : "↓") : "↕";
       return `<th class="sortable" data-key="${c.key}" ${active ? `aria-sort="${sort.dir}"` : ""}>${c.label}<span class="arrow">${arrow}</span></th>`;
-    }).join("");
+    }).join("") + "<th></th>";
 
     const rows = subs.map((x, i) => {
       const name = x.url ? `<a href="${BL.escapeHtml(x.url)}" target="_blank" rel="noopener">${BL.escapeHtml(x.name)}</a>` : BL.escapeHtml(x.name);
       const drDisplay = x.dr != null ? x.dr : BL.escapeHtml(x.dr_label || "—");
       const w = x.dr != null ? Math.round((x.dr / maxDr) * 100) : 0;
+      const action = canCheckLive(x)
+        ? `<button class="approve-btn check-btn" data-name="${BL.escapeHtml(x.name)}" data-url="${BL.escapeHtml(x.url || "")}">Check now</button>`
+        : "";
       return `<tr class="reveal" style="animation-delay:${i * 0.015}s">
         <td class="t-name">${name}</td>
         <td class="cell-date">${BL.escapeHtml(x.date || "—")}</td>
         <td><div class="dr-cell"><span class="dr">${drDisplay}</span><span class="dr-track"><span class="dr-bar" style="--w:${w}%"></span></span></div></td>
         <td><span class="badge ${BL.statusClass(x.status)}">${BL.escapeHtml(BL.statusLabel(x.status))}</span></td>
         <td class="cell-notes">${BL.escapeHtml(BL.cleanMd(x.notes))}</td>
+        <td class="cell-approve">${action}</td>
       </tr>`;
     }).join("");
 
@@ -361,6 +379,38 @@
         renderSubmissions(DATA, { key, dir });
       });
     });
+    $("submissions").querySelectorAll(".check-btn").forEach((btn) => {
+      btn.addEventListener("click", () => onCheckLive(btn));
+    });
+  }
+
+  // Live-link check: asks the server to look for our backlink on the target site now.
+  function onCheckLive(btn) {
+    const name = btn.dataset.name || "", url = btn.dataset.url || "";
+    btn.disabled = true;
+    btn.textContent = "Checking…";
+    fetch("api/check-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Approve-Token": APPROVE_TOKEN },
+      body: JSON.stringify({ name, url }),
+    })
+      .then((res) => { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .then((resp) => {
+        if (resp.found && resp.status_written) {
+          const key = approvalKey(name, url);
+          const row = (DATA.submissions || []).find((x) => approvalKey(x.name, x.url) === key || approvalKey(x.name, "") === approvalKey(name, ""));
+          if (row) {
+            row.status = resp.status_written;
+            if (resp.listing_url) row.url = resp.listing_url;
+          }
+          renderSubmissions(DATA, _subSort);
+          renderKpis(DATA);
+        } else {
+          btn.textContent = "No link yet";
+          setTimeout(() => { btn.disabled = false; btn.textContent = "Check now"; }, 2500);
+        }
+      })
+      .catch((e) => { btn.disabled = false; btn.textContent = "Check now"; btn.title = "Failed: " + e.message; });
   }
 
   function sortRows(rows, sort) {
