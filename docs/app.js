@@ -107,7 +107,7 @@
         <td class="t-name">${t}</td>
         <td class="cell-score">${scoreChip(it.score)}</td>
         <td>${qualityCell(it)}</td>
-        <td class="cell-why" title="${BL.escapeHtml(why)}"><span class="why-text">${BL.escapeHtml(whyShort)}</span></td>
+        <td class="cell-why" title="${BL.escapeHtml(why + (it.source ? "  —  " + it.source : ""))}"><span class="why-text">${BL.escapeHtml(whyShort)}</span></td>
         <td class="cell-approve">${approveControl(it, existing)}</td>
       </tr>`;
     }).join("");

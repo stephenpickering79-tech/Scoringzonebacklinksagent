@@ -26,6 +26,8 @@ For each candidate URL provided, output a JSON object with:
 
 Be ruthless about relevance to golf, sports tech, coaches, or serious makers. Generic directories score low unless they have exceptional authority and dofollow links. A high spam_risk target should score low even if topically relevant — a penalty risk is never worth it.
 
+If the description includes domain authority (DA) and competitor-link evidence (e.g. "links to thegrint.com but not scoringzone.net"), weigh it: a relevant domain that already links to a competitor golf app is a proven, replicable prospect.
+
 Only recommend targets that would meaningfully help authority or drive golfer/maker traffic and signups.
 
 Candidate:

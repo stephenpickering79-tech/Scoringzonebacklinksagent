@@ -55,8 +55,9 @@ BASE_DIR = Path(__file__).parent.parent
 LOGS_DIR = BASE_DIR / "logs"
 DATA_DIR = BASE_DIR / "data"
 
-# How many newly-discovered targets to surface for human review each run. Discoveries are NOT
-# auto-dropped by score (Stephen reviews them); this just keeps the daily list manageable.
+# How many newly-discovered targets to surface for human review each run, after discoveries
+# scoring below DISCOVERY_MIN_SCORE have been hidden (hidden items are logged to
+# data/rejected_*.json, never silently deleted).
 MAX_DISCOVERIES_SHOWN = 25
 
 LOGS_DIR.mkdir(exist_ok=True)
@@ -77,6 +78,9 @@ def load_config():
         "max_submissions_per_day": int(os.getenv("MAX_SUBMISSIONS_PER_DAY", "5")),
         "dry_run": os.getenv("DRY_RUN", "true").lower() in ("1", "true", "yes"),
         "min_authority_score": 75,
+        # Discoveries scoring below this are hidden from the dashboard (still logged to
+        # data/rejected_*.json). Tune on Railway without a code change.
+        "discovery_min_score": int(os.getenv("DISCOVERY_MIN_SCORE", "60")),
         "mode": os.getenv("AGENT_MODE", "propose").lower(),
         "approved_targets": os.getenv("APPROVED_TARGETS", "").strip(),
         "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", "").strip(),
@@ -91,7 +95,7 @@ def load_config():
     }
 
 
-def generate_proposal_report(scored_targets, date_str):
+def generate_proposal_report(scored_targets, date_str, hidden_count=0, hidden_threshold=None):
     """Generate a human-friendly Markdown report for the GitHub Issue."""
     report_lines = [
         f"# Backlink Proposals – {date_str}",
@@ -102,6 +106,8 @@ def generate_proposal_report(scored_targets, date_str):
         "Then manually trigger the workflow with `mode=submit` and the approved list in the `approved_targets` input.",
         "",
         f"**Total candidates researched:** {len(scored_targets)} (top {len(scored_targets)} shown after filtering)",
+        (f"**Hidden below threshold ({hidden_threshold}):** {hidden_count} — see `data/rejected_{date_str}.json`"
+         if hidden_count else ""),
         "",
         "## Scored Shortlist (sorted by authority score)",
         "",
@@ -161,16 +167,19 @@ def main():
         # Curated targets are already vetted by the user — include them directly (no score cutoff).
         scored_seeded = score_seeded_targets(seeded)
 
-        # New discoveries are ALWAYS surfaced for human review — never auto-dropped by score.
-        # The LLM (if available) only ranks them; Stephen decides via Approve/Dismiss. A keyword
-        # rule can't judge a new directory's quality and would wrongly drop real SaaS/general
-        # directories that lack a golf keyword (and Stephen wants those surfaced too).
+        # New discoveries are scored by the LLM (if available), then anything below
+        # DISCOVERY_MIN_SCORE is hidden from the dashboard but logged to data/rejected_*.json —
+        # nothing silently disappears, and the threshold is env-tunable. Stephen still decides
+        # the rest via Approve/Dismiss.
         openrouter_key = config.get("openrouter_api_key")
+        used_llm = False
         if openrouter_key and new_candidates:
-            log("Using OpenRouter to score new discoveries (for ranking, not filtering)...")
+            log("Using OpenRouter to score new discoveries...")
             try:
-                # min_score=0 → keep ALL discoveries with their score; no relevance cutoff.
+                # min_score=0 → score everything; the display threshold is applied below so
+                # hidden items keep their scores in the rejected log.
                 scored_new = score_candidates_with_openrouter(new_candidates, openrouter_key, 0)
+                used_llm = True
             except Exception as e:
                 log(f"OpenRouter scoring failed ({e}); presenting discoveries for manual review.")
                 scored_new = score_discoveries_for_review(new_candidates)
@@ -179,7 +188,25 @@ def main():
                 log("No OPENROUTER_API_KEY — presenting discoveries for manual review.")
             scored_new = score_discoveries_for_review(new_candidates)
 
-        # Mark every discovery as needing review (these are NOT auto-vetted like curated targets).
+        # Apply the display threshold. Rule-based fallback scores are uniform, so there the
+        # spam/quality heuristics decide instead of the score.
+        threshold = config["discovery_min_score"]
+        if used_llm:
+            hidden = [s for s in scored_new if s.get("score", 0) < threshold]
+        else:
+            hidden = [s for s in scored_new
+                      if s.get("spam_risk") == "high" or s.get("quality_tier") == "Avoid"]
+        hidden_keys = {id(s) for s in hidden}
+        scored_new = [s for s in scored_new if id(s) not in hidden_keys]
+
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        rejected_path = DATA_DIR / f"rejected_{date_str}.json"
+        if hidden:
+            with open(rejected_path, "w") as f:
+                json.dump(hidden, f, indent=2)
+            log(f"{len(hidden)} discoveries hidden below score {threshold} → {rejected_path.name}")
+
+        # Mark every surfaced discovery as needing review (not auto-vetted like curated targets).
         for s in scored_new:
             sc = s.get("score", 0)
             s["recommended_action"] = "Review — strong find" if sc >= config["min_authority_score"] else "Review — new find"
@@ -209,8 +236,8 @@ def main():
         log(f"Shortlist saved to {shortlist_path}")
 
         # Generate human-readable report for the GitHub Issue
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        report_md = generate_proposal_report(scored, date_str)
+        report_md = generate_proposal_report(scored, date_str, hidden_count=len(hidden),
+                                             hidden_threshold=threshold)
         report_path = DATA_DIR / f"daily_report_{date_str}.md"
         with open(report_path, "w") as f:
             f.write(report_md)
@@ -223,9 +250,11 @@ def main():
             "candidates_found": len(candidates),
             "seeded": len(seeded),
             "discovered": len(new_candidates),
+            "discoveries_hidden": len(hidden),
             "shortlist_size": len(scored),
             "report_file": str(report_path),
             "shortlist_file": str(shortlist_path),
+            "rejected_file": str(rejected_path) if hidden else "",
         }
         summary_path = DATA_DIR / f"summary_{date_str}.json"
         with open(summary_path, "w") as f:
