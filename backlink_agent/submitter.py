@@ -118,19 +118,35 @@ def dispatch(name: str, url: str, dry_run: bool = False) -> tuple[str, str]:
             if dry_run:
                 return "approved", f"dry run — would auto-submit via {scripted}"
             mod = importlib.import_module(scripted)
-            outcome = mod.submit()  # "submitted" | "aborted"
+            raw = mod.submit()
             label = scripted
         else:
             if not url:
                 return "needs_manual_submit", "No URL to submit to."
             mod = importlib.import_module("submit_generic")
-            outcome = mod.submit(name, url, dry_run=dry_run)  # "submitted"|"aborted"|"dry"
+            raw = mod.submit(name, url, dry_run=dry_run)
             label = "generic submitter"
     except Exception as e:
         return "error", f"{type(e).__name__}: {e}"[:200]
 
+    # Submitted path returns a dict with on-page confirmation evidence; other
+    # outcomes ("aborted"/"dry") remain plain strings.
+    confirmation, evidence = "", ""
+    if isinstance(raw, dict):
+        outcome = raw.get("outcome", "")
+        confirmation = raw.get("confirmation", "")
+        evidence = raw.get("evidence", "")
+    else:
+        outcome = raw
+
     if outcome == "submitted":
-        return "submitted", f"Submitted via {label}."
+        if confirmation == "confirmed":
+            suffix = f" Confirmation detected: {evidence[:120]}"
+        elif confirmation == "error":
+            suffix = f" WARNING — page showed an error: {evidence[:120]} Review the screenshots."
+        else:
+            suffix = " No on-page confirmation detected (may still be fine — check the result screenshot)."
+        return "submitted", f"Submitted via {label}.{suffix}"
     if outcome == "dry":
         return "approved", "dry run — filled the form, did not submit."
     # aborted / anything else → couldn't complete automatically.

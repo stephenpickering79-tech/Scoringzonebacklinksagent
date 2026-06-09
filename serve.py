@@ -154,6 +154,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "/api/approve": self._handle_approve,
             "/api/dismiss": self._handle_dismiss,
             "/api/mark-submitted": self._handle_mark_submitted,
+            "/api/check-live": self._handle_check_live,
         }
         if route in handlers:
             if not self._token_ok():
@@ -185,6 +186,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         log(f"mark-submitted: {name or url}")
         self._send_json(200, {"ok": True, "name": name or url})
+
+    def _handle_check_live(self) -> None:
+        """Force a live-link check for one target now (the 'Check now' button).
+        Synchronous: the requests path is fast; worst case is one Steel cheap-scrape."""
+        payload = self._read_json() or {}
+        name = (payload.get("name") or "").strip()
+        url = (payload.get("url") or "").strip()
+        if not name and not url:
+            self._send_json(400, {"ok": False, "error": "name or url required"})
+            return
+        try:
+            from backlink_agent import livecheck
+            result = livecheck.check_one(name, url)
+            dashboard.refresh_submissions()
+        except Exception as e:
+            log(f"check-live failed: {e}")
+            self._send_json(500, {"ok": False, "error": "check failed"})
+            return
+        log(f"check-live: {name or url} → found={result.get('found')}")
+        self._send_json(200, {"ok": True, **result})
 
     def _handle_approve(self) -> None:
         payload = self._read_json() or {}
@@ -267,6 +288,16 @@ def run_propose_cycle() -> None:
     except Exception as e:
         log(f"dashboard.generate_all() failed: {e}")
         send_alert(f"dashboard generation FAILED: {e}")
+    # Live-link sweep: flips pending submissions to Live when the backlink appears,
+    # flags lost links. Cadence/guards live in livecheck itself.
+    try:
+        from backlink_agent import livecheck
+        summary = livecheck.run_daily_checks()
+        log(f"livecheck: {summary}")
+        if summary.get("changed"):
+            dashboard.refresh_submissions()
+    except Exception as e:
+        log(f"livecheck failed: {e}")
     log("Propose cycle finished.")
 
 

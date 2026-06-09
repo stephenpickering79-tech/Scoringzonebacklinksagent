@@ -34,7 +34,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
+from steel_utils import (record_session, record_submission, steel_page, wait_for_captchas,
+                         detect_submission_confirmation, send_alert)
 
 # Dashboard session metadata
 MODE = "submit_eatsleepgolf"
@@ -193,6 +194,7 @@ def submit() -> str:
 
         # === Submit ===
         print("Looking for submit button...")
+        url_before = page.url
         submit_selectors = [
             'button[type="submit"]',
             'input[type="submit"]',
@@ -236,26 +238,29 @@ def submit() -> str:
         record_session(session_id, target=TARGET_URL, mode=MODE,
                        outcome="submitted" if submitted else "aborted",
                        screenshots=screenshots)
-        # On a real submit, also update the Submissions tab with a status.
+        # On a real submit, detect whether the page actually confirmed it, then log.
+        confirmation, evidence = "", ""
         if submitted:
-            record_submission(SUBMISSION_NAME, TARGET_URL, status="Submitted (auto)", method="auto",
-                              notes="Auto-submitted via Steel.")
-
-        # Print any visible success text
-        try:
-            body_text = page.inner_text("body")[:500]
-            if "success" in body_text.lower() or "thank" in body_text.lower() or "listed" in body_text.lower():
-                print("Possible success message detected in page text.")
-            print("Page text snippet:", body_text[:300])
-        except Exception:
-            pass
+            confirmation, evidence = detect_submission_confirmation(page, url_before=url_before)
+            print(f"Confirmation check: {confirmation} ({evidence[:120]})")
+            if confirmation == "confirmed":
+                status, notes = "Submitted — confirmed", f"Auto-submitted via Steel. Confirmation: {evidence[:150]}"
+            elif confirmation == "error":
+                status, notes = "Submitted (error on page — review)", f"Auto-submitted via Steel but page showed: {evidence[:150]}"
+                send_alert(f"Eat Sleep Golf submit may have FAILED — page showed an error: {evidence[:200]}")
+            else:
+                status, notes = "Submitted (unconfirmed)", "Auto-submitted via Steel. No on-page confirmation detected."
+            record_submission(SUBMISSION_NAME, TARGET_URL, status=status, method="auto",
+                              notes=notes, confirmation=confirmation, evidence=evidence[:200])
 
         print("\n=== Submission attempt complete ===")
         print("Check the result screenshot and session viewer (if still active).")
         print("If a donation step appeared, you can complete it manually for faster/better listing.")
         print("Next: Update directory-submissions.md with today's date and status.")
 
-        return "submitted" if submitted else "aborted"
+        if submitted:
+            return {"outcome": "submitted", "confirmation": confirmation, "evidence": evidence[:200]}
+        return "aborted"
 
 
 def main():

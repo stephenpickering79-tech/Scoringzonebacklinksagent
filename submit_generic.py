@@ -11,7 +11,8 @@ can flag them "needs manual submit". Screenshots + a Steel session are always re
 
 Usage:
     from submit_generic import submit
-    outcome = submit("Some Directory", "https://example.com/submit")   # "submitted"|"aborted"|"dry"
+    outcome = submit("Some Directory", "https://example.com/submit")
+    # → {"outcome": "submitted", "confirmation": ..., "evidence": ...} | "aborted" | "dry"
 
     # CLI: python submit_generic.py "Name" https://example.com/submit [--dry]
 """
@@ -22,7 +23,8 @@ import sys
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
+from steel_utils import (record_session, record_submission, steel_page, wait_for_captchas,
+                         detect_submission_confirmation, send_alert)
 from submission_profile import (
     COMPANY_NAME, CONTACT_EMAIL, CONTACT_NAME, LONG_DESC, TAGS, WEBSITE, pick_short_desc,
 )
@@ -50,8 +52,9 @@ def _slug(text: str) -> str:
 def submit(name: str, url: str, *, dry_run: bool = False) -> str:
     """Best-effort submit `name` (Scoring Zone) to the directory at `url`.
 
-    Returns "submitted" | "aborted" | "dry". Raises only on hard failures (e.g. no
-    STEEL_API_KEY), which the caller catches and records as an error.
+    Returns {"outcome": "submitted", "confirmation", "evidence"} on a submit, else
+    "aborted" | "dry". Raises only on hard failures (e.g. no STEEL_API_KEY), which
+    the caller catches and records as an error.
     """
     print(f"=== Generic submit: {name} → {url} (dry_run={dry_run}) ===")
     slug = _slug(name or url)
@@ -148,6 +151,7 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
             return "dry"
 
         # Click submit.
+        url_before = page.url
         submitted = False
         for sel in _SUBMIT_SELECTORS:
             try:
@@ -179,7 +183,7 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
         if submitted:
             # Best-effort: if our backlink is already visible on the result page, record whether
             # it's dofollow/nofollow (disavow-readiness). Usually the listing is reviewed later, so
-            # this is often "not yet visible" — a proper check belongs in a later verification pass.
+            # this is often "not yet visible" — the livecheck pass verifies it properly later.
             rel_note = "link not yet visible (listing likely pending review)"
             try:
                 link = page.query_selector('a[href*="scoringzone"]')
@@ -188,8 +192,23 @@ def submit(name: str, url: str, *, dry_run: bool = False) -> str:
                     rel_note = "nofollow link" if "nofollow" in rel else "dofollow link"
             except Exception:
                 pass
-            record_submission(name, url, status="Submitted (auto)", method="auto",
-                              notes=f"Auto-submitted via generic Steel submitter. {rel_note}.")
+            confirmation, evidence = detect_submission_confirmation(page, url_before=url_before)
+            print(f"Confirmation check: {confirmation} ({evidence[:120]})")
+            if confirmation == "confirmed":
+                status = "Submitted — confirmed"
+                conf_note = f"Confirmation: {evidence[:120]}"
+            elif confirmation == "error":
+                status = "Submitted (error on page — review)"
+                conf_note = f"Page showed: {evidence[:120]}"
+                send_alert(f"Generic submit to {name} may have FAILED — page showed an error: {evidence[:200]}")
+            else:
+                status = "Submitted (unconfirmed)"
+                conf_note = "No on-page confirmation detected."
+            record_submission(name, url, status=status, method="auto",
+                              notes=f"Auto-submitted via generic Steel submitter. {rel_note}. {conf_note}",
+                              confirmation=confirmation, evidence=evidence[:200])
+            print(f"=== Generic submit {outcome}: {name} ===")
+            return {"outcome": "submitted", "confirmation": confirmation, "evidence": evidence[:200]}
         print(f"=== Generic submit {outcome}: {name} ===")
         return outcome
 

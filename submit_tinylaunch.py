@@ -30,7 +30,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steel_utils import record_session, record_submission, steel_page, wait_for_captchas
+from steel_utils import (record_session, record_submission, steel_page, wait_for_captchas,
+                         detect_submission_confirmation, send_alert)
 
 # Dashboard session metadata
 MODE = "submit_tinylaunch"
@@ -181,6 +182,7 @@ def submit() -> str:
 
         # Submit
         print("Submitting...")
+        url_before = page.url
         submitted = False
         for sel in [
             'button[type="submit"]',
@@ -215,16 +217,28 @@ def submit() -> str:
         record_session(sid, target=TARGET_URL, mode=MODE,
                        outcome="submitted" if submitted else "aborted",
                        screenshots=screenshots)
-        # On a real submit, also update the Submissions tab with a status.
+        # On a real submit, detect whether the page actually confirmed it, then log.
+        confirmation, evidence = "", ""
         if submitted:
-            record_submission(SUBMISSION_NAME, TARGET_URL, status="Submitted (auto)", method="auto",
-                              notes="Auto-submitted via Steel.")
+            confirmation, evidence = detect_submission_confirmation(page, url_before=url_before)
+            print(f"Confirmation check: {confirmation} ({evidence[:120]})")
+            if confirmation == "confirmed":
+                status, notes = "Submitted — confirmed", f"Auto-submitted via Steel. Confirmation: {evidence[:150]}"
+            elif confirmation == "error":
+                status, notes = "Submitted (error on page — review)", f"Auto-submitted via Steel but page showed: {evidence[:150]}"
+                send_alert(f"Tinylaunch submit may have FAILED — page showed an error: {evidence[:200]}")
+            else:
+                status, notes = "Submitted (unconfirmed)", "Auto-submitted via Steel. No on-page confirmation detected."
+            record_submission(SUBMISSION_NAME, TARGET_URL, status=status, method="auto",
+                              notes=notes, confirmation=confirmation, evidence=evidence[:200])
 
         print("\n=== Tinylaunch submission attempt complete ===")
         print("Review screenshots and session viewer. If account creation or additional steps required, complete manually and note in tracker.")
         print("Next: Update directory-submissions.md with status/date.")
 
-        return "submitted" if submitted else "aborted"
+        if submitted:
+            return {"outcome": "submitted", "confirmation": confirmation, "evidence": evidence[:200]}
+        return "aborted"
 
 
 def main():

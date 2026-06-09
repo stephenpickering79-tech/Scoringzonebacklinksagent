@@ -198,12 +198,19 @@ def _merge_submission_log(submissions: list[dict]) -> list[dict]:
         status = e.get("status") or "Submitted"
         date = e.get("date") or ""
         notes = e.get("notes") or "Auto-submitted by agent"
+        listing_url = e.get("listing_url") or ""
         existing = by_key.get(_sub_key(name, url)) or by_name.get(_sub_key(name, ""))
         if existing:
             existing["status"] = status
             if date:
                 existing["date"] = date
-            if not existing.get("url") and url:
+            if listing_url:
+                # The live-checker found the actual listing page — link the row there
+                # and surface its dofollow/nofollow note.
+                existing["url"] = listing_url
+                if e.get("notes"):
+                    existing["notes"] = e["notes"]
+            elif not existing.get("url") and url:
                 existing["url"] = url
         else:
             submissions.append({
@@ -212,7 +219,7 @@ def _merge_submission_log(submissions: list[dict]) -> list[dict]:
                 "dr": None,
                 "dr_label": "—",
                 "status": status,
-                "url": url or None,
+                "url": listing_url or url or None,
                 "notes": notes,
             })
     return submissions

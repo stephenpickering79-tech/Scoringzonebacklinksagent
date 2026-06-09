@@ -32,6 +32,7 @@
   function statusClass(status) {
     const s = (status || "").toLowerCase();
     if (s.includes("live")) return "live";
+    if (s.includes("lost") || s.includes("no link") || s.includes("error")) return "blocked";
     if (s.includes("block") || s.includes("reject")) return "blocked";
     if (s.includes("submit") || s.includes("pending") || s.includes("applied") || s.includes("ready") || s.includes("progress"))
       return "pending";
