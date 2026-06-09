@@ -7,10 +7,14 @@ Sources, combined and de-duplicated:
      (directory-submissions.md + backlink-targets.md). These are read straight off disk,
      so the candidate pool is NEVER empty even if the network/keys are unavailable.
      Only "open" targets are seeded (not already live/blocked/rejected/done).
-  2. WEB SEARCH (Serper, additive): actively searches Google for submission/directory pages
+  2. COMPETITOR BACKLINKS (file, additive): referring domains that link to competitor golf apps
+     but not to scoringzone.net, harvested via Ubersuggest in Claude Code (see
+     .claude/skills/harvest-competitor-backlinks) and committed as
+     competitor_backlink_candidates.json. Gated on that file existing.
+  3. WEB SEARCH (Serper, additive): actively searches Google for submission/directory pages
      ("submit your golf app", etc.), filtered to real listing opportunities. Gated on
      SERPER_API_KEY.
-  3. ROUNDUP SCRAPE (Steel, additive): extra links scraped from known golf roundups. Gated on
+  4. ROUNDUP SCRAPE (Steel, additive): extra links scraped from known golf roundups. Gated on
      STEEL_API_KEY.
 
 A single "research" session is recorded per run (steel_utils.record_session) so the dashboard
@@ -58,6 +62,13 @@ TARGETS_MD = BASE_DIR / "backlink-targets.md"
 # substring of its name or URL (case-insensitive).
 EXCLUDED_FILE = BASE_DIR / "excluded_targets.json"
 RUNTIME_EXCLUDED_FILE = DATA_DIR / "excluded.json"
+
+# Competitor config (shared with the harvest skill + competitor search queries) and the harvest
+# output it produces. Both committed at repo root (data/ is gitignored, so a volume path would
+# never reach Railway).
+COMPETITORS_FILE = BASE_DIR / "competitors.json"
+COMPETITOR_CANDIDATES_FILE = BASE_DIR / "competitor_backlink_candidates.json"
+COMPETITOR_FILE_STALE_DAYS = 45
 
 # A target is "done/closed" (skip) if its status contains any of these. Everything else
 # (not submitted, prepared, ready, in progress, pending, applied, submitted, blank) is "open".
@@ -119,6 +130,20 @@ def _is_excluded(candidate: dict, excluded: set) -> bool:
     nm = _norm_name(candidate.get("name", ""))
     url = _norm_url(candidate.get("url", ""))
     return any(e in nm or (url and e in url) for e in excluded)
+
+
+def load_competitors() -> list[dict]:
+    """[{domain, name}, ...] from competitors.json; [] on any failure (non-fatal)."""
+    try:
+        data = json.loads(COMPETITORS_FILE.read_text(encoding="utf-8"))
+        out = []
+        for c in data.get("competitors", []):
+            if isinstance(c, dict) and c.get("domain"):
+                out.append({"domain": c["domain"].strip(), "name": (c.get("name") or c["domain"]).strip()})
+        return out
+    except Exception as e:
+        print(f"[research] could not read {COMPETITORS_FILE.name}: {e}")
+        return []
 
 
 def seed_from_tracker(open_only: bool = True) -> tuple[list[dict], set]:
@@ -378,10 +403,30 @@ SEARCH_QUERY_POOL = [
     "startup directory \"add your startup\" free dofollow",
     "app of the day directory submit",
     "indie hackers tool directory submit",
+    # --- Resource/links pages & roundups (no "submit" language, LLM judges relevance) ---
+    "golf coaching \"useful links\" OR \"recommended apps\"",
+    "golf club website links page apps",
+    "golf instruction \"resources\" page apps tools",
+    "\"golf apps\" roundup 2026",
+    "golf practice tools resource list",
+    "golf stat tracking apps comparison",
 ]
 
-# How many of the pool to run per day. The window rotates by date so coverage spreads over ~3 days.
-QUERIES_PER_RUN = 8
+
+def _competitor_queries() -> list[str]:
+    """Queries derived from competitors.json — roundups/reviews/alternatives pages that cover a
+    competitor app usually accept or mention comparable apps, which makes them link prospects."""
+    out: list[str] = []
+    for c in load_competitors():
+        n = c.get("name") or c.get("domain")
+        out += [f"{n} alternatives", f"{n} review golf app", f"apps like {n}"]
+    return out
+
+
+SEARCH_QUERY_POOL = SEARCH_QUERY_POOL + _competitor_queries()
+
+# How many of the pool to run per day. The window rotates by date so coverage spreads over ~5 days.
+QUERIES_PER_RUN = 12
 
 
 def _todays_queries() -> list[str]:
@@ -393,13 +438,10 @@ def _todays_queries() -> list[str]:
     start = (date.today().toordinal() * QUERIES_PER_RUN) % len(pool)
     return [pool[(start + i) % len(pool)] for i in range(QUERIES_PER_RUN)]
 
-# Strong directory/submission signals — required in the TITLE or URL (not just the snippet),
-# which is far more precise: it keeps "Submit your SaaS", "150 Directories to list…", and drops
-# resource/doc/newsletter pages that merely mention "submit" in passing.
-_SEARCH_HINTS = (
-    "submit", "directory", "directories", "list your", "add your", "get listed", "submit your",
-    "places to submit", "where to submit",
-)
+# Search filtering philosophy: heuristics only remove hard JUNK (stores, social, docs, builders);
+# they no longer require "submit/directory" language, because that gate dropped good roundups,
+# review sites, and resource pages (the 2026-06-07 run found 0 candidates). Borderline results
+# flow through to the LLM scorer, and orchestrator's DISCOVERY_MIN_SCORE hides the low scorers.
 # Hosts that are never a submission target (encyclopedias, stores, social, listicle media).
 _EXCLUDE_HOSTS = (
     "wikipedia.org", "youtube.com", "amazon.", "apple.com", "play.google.com", "quora.com",
@@ -411,33 +453,55 @@ _BAD_PATH = ("/articles/", "/newsletter", "/showcase", "/help", "/support", "tax
              "/on-nbc", "/faq", "/company/")
 
 
-# Noise that LOOKS like a directory result but isn't a submission target: directory *builders*,
-# how-to/tutorial articles, templates, and editorial blog/guide posts. Matched in title or URL.
+# Noise that LOOKS like a relevant result but isn't a link prospect: directory *builders*,
+# how-to/tutorial articles, templates. Matched in title or URL. Deliberately does NOT match
+# /blog/ or /guide/ paths — roundups and reviews often live there and the LLM judges those.
 _SEARCH_NOISE = (
     "how to", "how-to", "website builder", "directory builder", " builder", "app template",
-    "template", "wordpress", "/tutorial", " module", "best ways to use", "create a ", "build a ",
-    "/blog/", "/guides/", "/guide/", "/post/", "lessons from", "mistakes", "why ", "ultimate guide",
+    "template", "wordpress", "/tutorial", " module", "create a ", "build a ",
+    "lessons from", "mistakes", "ultimate guide",
 )
+
+
+_OWN_HOSTS_CACHE: set | None = None
+
+
+def _own_and_competitor_hosts() -> set:
+    """Our own site + competitor domains — a backlink can't live on the linked-to site itself,
+    and competitor-name queries otherwise return the competitor's own pages."""
+    global _OWN_HOSTS_CACHE
+    if _OWN_HOSTS_CACHE is None:
+        hosts = {"scoringzone.net", "scoringzone.app"}
+        try:
+            data = json.loads(COMPETITORS_FILE.read_text(encoding="utf-8"))
+            site = (data.get("site") or "").strip().lower()
+            if site:
+                hosts.add(site)
+            hosts |= {c["domain"].strip().lower() for c in data.get("competitors", [])
+                      if isinstance(c, dict) and c.get("domain")}
+        except Exception:
+            pass
+        _OWN_HOSTS_CACHE = hosts
+    return _OWN_HOSTS_CACHE
 
 
 def _search_result_is_opportunity(title: str, snippet: str, link: str) -> bool:
     host = urlparse(link).netloc.lower().lstrip("www.")
     if not host or any(s in host for s in _SHARE_HOSTS) or any(b in host for b in _EXCLUDE_HOSTS):
         return False
+    if any(host == h or host.endswith("." + h) for h in _own_and_competitor_hosts()):
+        return False
     if any(host.startswith(p) for p in _BAD_HOST_PREFIX):
         return False
     low = link.lower()
     if low.endswith(".pdf") or any(b in low for b in _BAD_PATH):
         return False
-    # Drop builder/how-to/template/editorial noise that merely mentions "directory".
+    # Drop builder/how-to/template noise; everything else goes to the LLM for relevance scoring.
     hay = f"{title} {link}".lower()
-    if any(n in hay for n in _SEARCH_NOISE):
-        return False
-    # Require a directory/submission signal in the TITLE or URL (precise), not the snippet alone.
-    return any(h in hay for h in _SEARCH_HINTS)
+    return not any(n in hay for n in _SEARCH_NOISE)
 
 
-def serper_search(query: str, num: int = 10) -> list[dict]:
+def serper_search(query: str, num: int = 20, page: int = 1) -> list[dict]:
     """Return Serper organic results [{title, link, snippet}, ...] for a query."""
     import requests  # already a dependency
 
@@ -445,7 +509,7 @@ def serper_search(query: str, num: int = 10) -> list[dict]:
     resp = requests.post(
         SERPER_URL,
         headers={"X-API-KEY": key, "Content-Type": "application/json"},
-        json={"q": query, "num": num},
+        json={"q": query, "num": num, "page": page},
         timeout=30,
     )
     resp.raise_for_status()
@@ -468,41 +532,121 @@ def discover_via_search(known: set, max_items: int) -> tuple[list[dict], int, in
     seen: set = set()
     queries_run = 0
     errors = 0
-    cap = min(max_items, 25)
+    cap = min(max_items, 35)
     for query in _todays_queries():
         if len(out) >= cap:
             break
-        try:
-            results = serper_search(query, num=10)
-            queries_run += 1
-        except Exception as e:
-            errors += 1
-            print(f"[research] search error for '{query}': {e}")
-            continue
-        for r in results:
-            link = (r.get("link") or "").strip()
-            title = (r.get("title") or "").strip()
-            snippet = (r.get("snippet") or "").strip()
-            if not link or not _search_result_is_opportunity(title, snippet, link):
-                continue
-            ukey = _norm_url(link)
-            if not ukey or ukey in known or ukey in seen:
-                continue
-            seen.add(ukey)
-            out.append({
-                "name": title or urlparse(link).netloc.lstrip("www.") or link,
-                "url": link,
-                "source": f"web search: {query}",
-                "preapproved": False,
-                "title": title,
-                "description": snippet,
-                "snippet": snippet,
-                "discovered_at": datetime.now().isoformat(),
-                "method": "web_search",
-            })
+        accepted_for_query = 0
+        # Page 1 always; page 2 only when page 1 produced something (bounds Serper spend while
+        # going deeper on queries that are actually paying off).
+        for page in (1, 2):
+            if page > 1 and accepted_for_query == 0:
+                break
             if len(out) >= cap:
                 break
+            try:
+                results = serper_search(query, num=20, page=page)
+                queries_run += 1
+            except Exception as e:
+                errors += 1
+                print(f"[research] search error for '{query}' (page {page}): {e}")
+                break
+            for r in results:
+                link = (r.get("link") or "").strip()
+                title = (r.get("title") or "").strip()
+                snippet = (r.get("snippet") or "").strip()
+                if not link or not _search_result_is_opportunity(title, snippet, link):
+                    continue
+                ukey = _norm_url(link)
+                if not ukey or ukey in known or ukey in seen:
+                    continue
+                seen.add(ukey)
+                accepted_for_query += 1
+                out.append({
+                    "name": title or urlparse(link).netloc.lstrip("www.") or link,
+                    "url": link,
+                    "source": f"web search: {query}",
+                    "preapproved": False,
+                    "title": title,
+                    "description": snippet,
+                    "snippet": snippet,
+                    "discovered_at": datetime.now().isoformat(),
+                    "method": "web_search",
+                })
+                if len(out) >= cap:
+                    break
     return out, queries_run, errors
+
+
+def discover_from_competitor_file(known: set, max_items: int) -> tuple[list[dict], int]:
+    """Candidates from the committed Ubersuggest harvest (competitor_backlink_candidates.json).
+
+    Returns (candidates, skipped). Additive + offline: silently returns ([], 0) when the file is
+    absent (it only exists after the harvest skill has run). Highest-DA replicable domains first,
+    capped per run so the file drains over days as items get approved/dismissed (handled/excluded
+    domains stop matching on later runs).
+    """
+    if not COMPETITOR_CANDIDATES_FILE.exists():
+        print("[research] no competitor_backlink_candidates.json — skipping competitor discovery "
+              "(run the harvest-competitor-backlinks skill in Claude Code to create it).")
+        return [], 0
+    if max_items <= 0:
+        return [], 0
+    try:
+        data = json.loads(COMPETITOR_CANDIDATES_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[research] could not read {COMPETITOR_CANDIDATES_FILE.name}: {e}")
+        return [], 0
+
+    generated_at = data.get("generated_at", "")
+    try:
+        age_days = (datetime.now() - datetime.fromisoformat(generated_at)).days
+        if age_days > COMPETITOR_FILE_STALE_DAYS:
+            print(f"[research] competitor harvest is {age_days} days old — re-run the "
+                  f"harvest-competitor-backlinks skill to refresh it.")
+    except Exception:
+        pass
+
+    rows = [c for c in data.get("candidates", []) if isinstance(c, dict) and c.get("replicable")]
+    rows.sort(key=lambda c: c.get("domain_authority") or 0, reverse=True)
+
+    out: list[dict] = []
+    skipped = 0
+    cap = min(max_items, 15)
+    for c in rows:
+        domain = (c.get("domain") or "").strip()
+        url = (c.get("url") or "").strip() or (f"https://{domain}/" if domain else "")
+        if not url:
+            continue
+        # Dedupe on BOTH the page URL and the bare domain so a deep harvest path and a
+        # homepage found via web search collapse to one candidate.
+        keys = {_norm_url(url)}
+        if domain:
+            keys.add(_norm_url(f"https://{domain}"))
+        keys.discard("")
+        if not keys or any(k in known for k in keys):
+            skipped += 1
+            continue
+        known |= keys
+        comps = [x for x in (c.get("competitors_to") or []) if x]
+        da = c.get("domain_authority")
+        out.append({
+            "name": (c.get("name") or domain or url),
+            "url": url,
+            "source": f"links to {', '.join(comps[:3]) or 'competitors'} (DA {da if da is not None else '?'})",
+            "preapproved": False,
+            "title": c.get("name") or domain,
+            "description": (f"{c.get('category', 'site')}: {c.get('replicability_reason', '')} "
+                            f"Referring domain (DA {da if da is not None else '?'}) that links to "
+                            f"competitor(s) {', '.join(comps)} but not scoringzone.net."),
+            "snippet": c.get("replicability_reason", ""),
+            "domain_authority": da,
+            "discovered_at": generated_at or datetime.now().isoformat(),
+            "method": "competitor_backlinks",
+        })
+        if len(out) >= cap:
+            break
+    return out, skipped
 
 
 def _load_handled_urls() -> set:
@@ -528,7 +672,8 @@ def _load_handled_urls() -> set:
 def run(max_candidates: int = 50) -> list[dict]:
     """Build the de-duplicated candidate pool: curated seed (always) + new discoveries (additive).
 
-    Discovery has two additive sources, both gated on their keys and both de-duped against the
+    Discovery has three additive sources — competitor backlinks (gated on the harvest file),
+    web search (SERPER_API_KEY) and roundup scrape (STEEL_API_KEY) — each de-duped against the
     curated list, each other, AND already-handled targets (Approve queue + submission log).
     """
     seeded, known = seed_from_tracker()
@@ -543,7 +688,15 @@ def run(max_candidates: int = 50) -> list[dict]:
 
     remaining = max(0, max_candidates - len(seeded))
 
-    # Primary discovery: active web search for submission/directory pages (Serper).
+    # Highest-signal discovery first: domains that already link to competitor golf apps
+    # (Ubersuggest harvest committed by the harvest-competitor-backlinks skill).
+    competitor, comp_skipped = discover_from_competitor_file(known, remaining)
+    if competitor or comp_skipped:
+        print(f"[research] competitor backlinks added {len(competitor)} candidate(s); "
+              f"{comp_skipped} already known/handled.")
+    remaining = max(0, remaining - len(competitor))
+
+    # Primary live discovery: active web search for submission/directory pages (Serper).
     searched, queries_run, serr = discover_via_search(known, remaining)
     for c in searched:
         known.add(_norm_url(c["url"]))
@@ -562,7 +715,7 @@ def run(max_candidates: int = 50) -> list[dict]:
     candidates: list[dict] = []
     seen: set = set()
     dropped_excluded = 0
-    for c in seeded + searched + scraped:
+    for c in seeded + competitor + searched + scraped:
         if _is_excluded(c, excluded):
             dropped_excluded += 1
             continue
@@ -575,12 +728,14 @@ def run(max_candidates: int = 50) -> list[dict]:
         print(f"[research] excluded {dropped_excluded} candidate(s) per excluded_targets.json.")
 
     # Record one research session so the dashboard Sessions tab reflects the run.
-    new_total = len(searched) + len(scraped)
-    if not os.getenv("STEEL_API_KEY", "").strip() and not os.getenv("SERPER_API_KEY", "").strip():
+    new_total = len(competitor) + len(searched) + len(scraped)
+    if (not competitor and not os.getenv("STEEL_API_KEY", "").strip()
+            and not os.getenv("SERPER_API_KEY", "").strip()):
         outcome, detail = "skipped", "skipped (no SERPER_API_KEY / STEEL_API_KEY)"
     else:
         outcome = "completed"
-        detail = f"{queries_run} searches, {pages_scraped} pages, {new_total} new"
+        detail = (f"{queries_run} searches, {pages_scraped} pages, "
+                  f"{len(competitor)} competitor, {new_total} new")
     record_session(
         f"research-{datetime.now().strftime('%Y%m%d%H%M%S')}",
         target=f"Daily research — {detail}",

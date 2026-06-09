@@ -1,0 +1,12 @@
+{
+  "site": "scoringzone.net",
+  "competitors": [
+    {"domain": "thegrint.com", "name": "TheGrint"},
+    {"domain": "hole19golf.com", "name": "Hole19"},
+    {"domain": "18birdies.com", "name": "18Birdies"},
+    {"domain": "golfshot.com", "name": "Golfshot"},
+    {"domain": "shotscope.com", "name": "Shot Scope"},
+    {"domain": "arccosgolf.com", "name": "Arccos"},
+    {"domain": "clippd.com", "name": "Clippd"}
+  ]
+}

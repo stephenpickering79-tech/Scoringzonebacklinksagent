@@ -1,6 +1,63 @@
 [
   {
     "session_id_short": "research…",
+    "target": "Daily research — 10 searches, 0 pages, 15 competitor, 40 new",
+    "mode": "research",
+    "timestamp": "2026-06-10T00:28:20.957226",
+    "screenshots": [],
+    "screenshot_count": 0,
+    "outcome": "completed"
+  },
+  {
+    "session_id_short": "research…",
+    "target": "Daily research — 10 searches, 0 pages, 15 competitor, 40 new",
+    "mode": "research",
+    "timestamp": "2026-06-10T00:27:57.086223",
+    "screenshots": [],
+    "screenshot_count": 0,
+    "outcome": "completed"
+  },
+  {
+    "session_id_short": "research…",
+    "target": "Daily research — 6 searches, 0 pages, 15 competitor, 40 new",
+    "mode": "research",
+    "timestamp": "2026-06-10T00:26:31.102783",
+    "screenshots": [],
+    "screenshot_count": 0,
+    "outcome": "completed"
+  },
+  {
+    "session_id_short": "a2553381…",
+    "target": "https://submitsaas.com/",
+    "mode": "submit_generic",
+    "timestamp": "2026-06-07T13:37:10.261657",
+    "screenshots": [
+      "generic_submitsaas_before.png",
+      "generic_submitsaas_filled.png"
+    ],
+    "screenshot_count": 2,
+    "outcome": "aborted"
+  },
+  {
+    "session_id_short": "research…",
+    "target": "Daily research — 7 searches, 18 pages, 25 new",
+    "mode": "research",
+    "timestamp": "2026-06-07T13:16:17.553449",
+    "screenshots": [],
+    "screenshot_count": 0,
+    "outcome": "completed"
+  },
+  {
+    "session_id_short": "research…",
+    "target": "Daily research — 8 searches, 12 pages, 11 new",
+    "mode": "research",
+    "timestamp": "2026-06-07T12:29:49.502874",
+    "screenshots": [],
+    "screenshot_count": 0,
+    "outcome": "completed"
+  },
+  {
+    "session_id_short": "research…",
     "target": "Daily research — 7 searches, 12 pages, 12 new",
     "mode": "research",
     "timestamp": "2026-06-06T23:17:14.352339",

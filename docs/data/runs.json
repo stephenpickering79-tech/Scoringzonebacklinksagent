@@ -4,5 +4,17 @@
     "mode": "propose",
     "candidates_found": 20,
     "shortlist_size": 20
+  },
+  {
+    "date": "2026-06-07",
+    "mode": "propose",
+    "candidates_found": 0,
+    "shortlist_size": 0
+  },
+  {
+    "date": "2026-06-10",
+    "mode": "propose",
+    "candidates_found": 48,
+    "shortlist_size": 33
   }
 ]
