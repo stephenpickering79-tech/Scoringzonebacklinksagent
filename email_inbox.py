@@ -26,6 +26,12 @@ from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 
+try:  # ensure .env is loaded even if this module is used standalone
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 _HOST = os.getenv("IMAP_HOST", "imap.gmail.com")
 
 # Links worth clicking — verification/activation flows use these tokens in the path
@@ -60,7 +66,9 @@ _LINK_BLOCKLIST = ("unsubscribe", "/privacy", "/terms", "twitter.com", "x.com",
 
 
 def imap_password() -> str:
-    pw = os.getenv("IMAP_PASSWORD", "").strip()
+    # Gmail shows app passwords as "abcd efgh ijkl mnop"; the real value is the 16
+    # chars without spaces — strip ALL whitespace so a pasted-with-spaces value works.
+    pw = re.sub(r"\s+", "", os.getenv("IMAP_PASSWORD", ""))
     if not pw:
         raise RuntimeError(
             "IMAP_PASSWORD is not set — the agent can't read verification emails. "
@@ -84,12 +92,22 @@ def is_configured() -> bool:
     return bool(os.getenv("IMAP_PASSWORD", "").strip())
 
 
+# Second-level public suffixes ('scoringzone.co.uk' style) — the label is one left of these.
+_TLD2 = ("co", "com", "net", "org", "ac", "gov", "edu")
+
+
 def _registrable_label(domain: str) -> str:
-    """'www.producthunt.com' -> 'producthunt' — the word that ties an email to a site."""
+    """'www.producthunt.com' -> 'producthunt' — the word that ties an email to a site.
+    Strips by POSITION (the TLD is the last part), never by token value: filtering any
+    part that merely looks like a TLD ate the site name on short domains ('dev.to'
+    became 'to')."""
     host = (domain or "").lower().split("/")[0]
-    parts = [p for p in host.split(".") if p not in ("www", "com", "net", "org", "io",
-                                                     "co", "app", "dev", "ai", "so")]
-    return parts[-1] if parts else host
+    parts = [p for p in host.split(".") if p and p != "www"]
+    if not parts:
+        return host
+    if len(parts) >= 3 and parts[-2] in _TLD2:
+        return parts[-3]
+    return parts[-2] if len(parts) >= 2 else parts[0]
 
 
 def _decode(s) -> str:
@@ -211,13 +229,16 @@ def find_verification(site_url_or_domain: str, *, since: datetime | None = None,
     label = _registrable_label(domain)
     if since is None:
         since = datetime.now(timezone.utc) - timedelta(minutes=30)
+    # 2-min grace before the per-message datetime filter (_scan_once) so a small
+    # clock/timezone/delivery skew can't drop a genuinely-new verification email.
+    since = since - timedelta(minutes=2)
     since_str = since.strftime("%d-%b-%Y")
 
     deadline = time.time() + timeout_sec
     print(f"[email_inbox] waiting for {label!r} verification email (up to {timeout_sec}s)…")
     while time.time() < deadline:
         try:
-            found = _scan_once(mailbox, pw, since_str, since, label)
+            found = _scan_once(mailbox, pw, since_str, since, label) or {}
             if found.get("link") or found.get("code"):
                 print(f"[email_inbox] verification found for {label} "
                       f"({'link' if found.get('link') else 'code'})")
@@ -242,7 +263,7 @@ def _scan_once(mailbox: str, pw: str, since_str: str, since_dt: datetime,
         conn.select("INBOX")
         typ, data = conn.search(None, "SINCE", since_str)
         if typ != "OK" or not data or not data[0]:
-            return None
+            return {"link": None, "code": None}
         ids = data[0].split()
         # newest first
         for mid in reversed(ids[-40:]):
