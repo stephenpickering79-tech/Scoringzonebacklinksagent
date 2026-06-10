@@ -9,11 +9,11 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 |---|--------------------|------|-------------|--------|-------|
 | 1 | BetaList | 2026-04-07 | 75 | Pending review | Lite tier ($39), dofollow |
 | 2 | Crunchbase | 2026-04-07 | 91 | Live ✓ (confirmed 2026-04-19) | Full profile, strong credibility backlink |
-| 3 | Product Hunt | 2026-04-08 | 91 | Submitted | Direct submit by Stephen |
+| 3 | Product Hunt | 2026-04-08 | 91 | Submitted | Direct submit by Stephen. Not in Google index as of 2026-06-10 (PH bot-walls all checks) — verify manually |
 | 4 | SaaSHub | 2026-04-08 | 68 | Live ✓ (2026-04-16) | Free tier |
 | 5 | SourceForge | 2026-04-09 | 92 | Blocked | Phone verification required |
-| 6 | AppSumo | 2026-04-09 | 90 | Applied | Launch application submitted |
-| 7 | Bright Data | 2026-04-10 | — | Submitted | — |
+| 6 | AppSumo | 2026-04-09 | 90 | No link found — review | Launch application submitted 62 days ago; appsumo.com/products/scoring-zone is a soft-404 (no listing created) |
+| 7 | Bright Data | 2026-04-10 | — | No link found — review | Submitted 61 days ago; no listing URL ever recorded and nothing indexed — follow up or drop |
 | 8 | Turbo0 | 2026-04-14 | 78 | Live ✓ | Free, dofollow, reciprocal required |
 | 9 | PeerPush | 2026-04-14 | 73 | Live ✓ | Paid $35, dofollow, SEO/AEO optimised |
 | 10 | SaasHunt | 2026-04-14 | 49 | Live ✓ (#1 Project of the Day 2026-04-19) | Paid $9, badge in footer |
@@ -34,11 +34,11 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 |---|-----------|-----|------|--------|-------|
 | 1 | BetaList | https://betalist.com/startups/scoring-zone | 2026-04-07 | Live ✓ (confirmed ~2026-06) | Lite tier ($39), DR 75 dofollow. Listing visible at betalist.com/startups/scoring-zone |
 | 2 | Crunchbase | https://www.crunchbase.com/organization/scoring-zone | 2026-04-07 | Live ✓ | DR 91. Listing confirmed live 2026-04-19. Full description, website link, LinkedIn. |
-| 3 | Product Hunt | — | 2026-04-08 | Submitted (verify) | DR 91. Stephen submitted directly. Steel check hit protection; manual follow-up recommended. |
+| 3 | Product Hunt | — | 2026-04-08 | Submitted (verify) | DR 91. Stephen submitted directly. All automated checks bot-walled (Cloudflare); not in the Google index as of 2026-06-10, so the listing likely never went live — verify manually. |
 | 4 | SaaSHub | — | 2026-04-08 | Live ✓ | DR 68. Free tier. Confirmed live 2026-04-16. |
 | 5 | SourceForge | — | 2026-04-09 | Blocked | DR 92. Requires phone verification — cannot complete. |
-| 6 | AppSumo | — | 2026-04-09 | Applied | DR 90. Apply to Launch submitted. |
-| 7 | Bright Data | — | 2026-04-10 | Submitted | — |
+| 6 | AppSumo | — | 2026-04-09 | No link found — review | DR 90. Apply to Launch submitted 2026-04-09; livecheck 2026-06-10: appsumo.com/products/scoring-zone/ returns a soft-404 and nothing is indexed — application appears not actioned. Follow up with AppSumo or drop. |
+| 7 | Bright Data | — | 2026-04-10 | No link found — review | Livecheck 2026-06-10: no listing URL was ever recorded for this submission and site:brightdata.com has nothing indexed — nothing checkable. Identify what was submitted or drop. |
 | 8 | Turbo0 | — | 2026-04-14 | Live ✓ | DR 78. Free, dofollow. Reciprocal backlink required. |
 | 9 | PeerPush | — | 2026-04-14 | Live ✓ | DR 73. Paid $35. Dofollow, SEO & AEO optimised. |
 | 10 | SaasHunt | https://saashunt.best/projects/scoring-zone | 2026-04-14 | Live ✓ | DR 49. Paid $9. #1 Project of the Day 2026-04-19 — badge added to footer. |

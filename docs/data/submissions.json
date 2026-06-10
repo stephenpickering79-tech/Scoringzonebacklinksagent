@@ -24,7 +24,7 @@
     "dr_label": "91",
     "status": "Submitted",
     "url": null,
-    "notes": "Direct submit by Stephen"
+    "notes": "Direct submit by Stephen. Not in Google index as of 2026-06-10 (PH bot-walls all checks) — verify manually"
   },
   {
     "name": "SaaSHub",
@@ -46,21 +46,21 @@
   },
   {
     "name": "AppSumo",
-    "date": "2026-04-09",
+    "date": "2026-06-10",
     "dr": 90,
     "dr_label": "90",
-    "status": "Applied",
-    "url": null,
-    "notes": "Launch application submitted"
+    "status": "No link found — review",
+    "url": "https://appsumo.com/products/scoring-zone/",
+    "notes": "Launch application submitted 62 days ago; appsumo.com/products/scoring-zone is a soft-404 (no listing created)"
   },
   {
     "name": "Bright Data",
-    "date": "2026-04-10",
+    "date": "2026-06-10",
     "dr": null,
     "dr_label": "—",
-    "status": "Submitted",
+    "status": "No link found — review",
     "url": null,
-    "notes": "—"
+    "notes": "Submitted 61 days ago; no listing URL ever recorded and nothing indexed — follow up or drop"
   },
   {
     "name": "Turbo0",
@@ -136,11 +136,11 @@
   },
   {
     "name": "Eat Sleep Golf - Get Listed",
-    "date": "Prepared (2026-06)",
+    "date": "2026-06-10",
     "dr": null,
     "dr_label": "Niche high",
-    "status": "Ready to submit",
-    "url": null,
+    "status": "Approved — to submit",
+    "url": "https://www.eatsleepgolf.net/get-listed",
     "notes": "**#1 priority**. Form + optional donation. Text + assets ready. Steel script prepared (`submit_eatsleepgolf.py`)"
   },
   {
@@ -160,5 +160,14 @@
     "status": "Not submitted",
     "url": null,
     "notes": "Secondary"
+  },
+  {
+    "name": "Tinylaunch",
+    "date": "2026-06-10",
+    "dr": null,
+    "dr_label": "—",
+    "status": "Approved — to submit",
+    "url": "https://www.tinylaunch.com/ (submit product)",
+    "notes": ""
   }
 ]

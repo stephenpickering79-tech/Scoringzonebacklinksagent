@@ -213,7 +213,16 @@ def _browser_fetch(url: str) -> str:
                 page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 pass
-            return page.content() or ""
+            # Cloudflare-style challenges resolve asynchronously after load —
+            # re-read until the content stops looking like a challenge page.
+            import time as _time
+            content = page.content() or ""
+            for _ in range(5):
+                if not _looks_blocked(content):
+                    break
+                _time.sleep(5)
+                content = page.content() or ""
+            return content
     except Exception as e:
         print(f"[livecheck] browser fetch failed for {url}: {type(e).__name__}: {e}")
         return ""
@@ -253,12 +262,20 @@ def find_backlink(html: str) -> tuple[str | None, bool | None]:
     return m.group(1), dofollow
 
 
+_SCRIPT_STYLE_RE = re.compile(r"<(script|style)\b.*?</\1\s*>", re.IGNORECASE | re.DOTALL)
+
+
 def listing_is_live(page_url: str, html: str) -> bool:
     """Weaker signal: the listing page itself (path names the product) exists and
-    mentions Scoring Zone — covers directories that link out via redirect URLs."""
+    mentions Scoring Zone — covers directories that link out via redirect URLs.
+
+    Only VISIBLE markup counts: script/style blocks are stripped first, because
+    SPA frameworks serialize the requested route into script JSON — a 404 page
+    for /launch/scoring-zone "mentions" scoring-zone in its router payload."""
     if not _looks_like_listing_url(page_url):
         return False
-    return bool(_PRODUCT_RE.search(html or ""))
+    visible = _SCRIPT_STYLE_RE.sub("", html or "")
+    return bool(_PRODUCT_RE.search(visible))
 
 
 def _allowed_write(current_status: str, proposed: str) -> bool:
@@ -321,6 +338,7 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
                     from steel_utils import cheap_scrape
                     html = cheap_scrape(cand, extract_links=False).get("html") or ""
                     method = "steel"
+                    status_code = None  # Steel fetch — HTTP status of this html unknown
                 except Exception as e:
                     print(f"[livecheck] cheap_scrape failed for {cand}: {e}")
                 # Hard bot wall (Cloudflare et al.) blocks cheap_scrape too —
@@ -332,15 +350,21 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
                     if fetched:
                         html = fetched
                         method = "steel-browser"
+                        status_code = None
         if _looks_blocked(html):
+            # A bot-wall/challenge page is no evidence either way — and it echoes
+            # the requested URL (".../scoring-zone"), which would false-positive
+            # the name-mention signal. Skip evidence checks entirely.
             blocked_fetches += 1
-        else:
-            clean_fetches += 1
+            continue
+        clean_fetches += 1
         href, rel_ok = find_backlink(html)
         if href:
             found_url, dofollow = cand, rel_ok
             break
-        if listing_is_live(cand, html):
+        # Weak name-mention signal only counts on a real 200 (or a Steel fetch,
+        # where the HTTP status is unknown) — a 404 page echoes the slug too.
+        if status_code in (None, 200) and listing_is_live(cand, html):
             found_url, dofollow = cand, None
             break
 
