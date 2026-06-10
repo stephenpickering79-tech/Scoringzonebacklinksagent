@@ -135,6 +135,19 @@ def store_credential(url_or_domain: str, username: str, password: str, client=No
         print(f"[site_credentials] stored login in Steel for {origin}")
         return True
     except Exception as e:
+        # A credential for this origin may survive from an earlier signup attempt —
+        # overwrite it, otherwise Steel keeps the stale password forever.
+        if "already exists" in str(e).lower() or "409" in str(e):
+            try:
+                client.credentials.update(
+                    origin=origin,
+                    value={"username": username, "password": password},
+                    label=domain_of(origin),
+                )
+                print(f"[site_credentials] updated existing Steel login for {origin}")
+                return True
+            except Exception as e2:
+                e = e2
         print(f"[site_credentials] could not store credential for {origin}: {e}")
         return False
 

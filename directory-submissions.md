@@ -9,7 +9,7 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 |---|--------------------|------|-------------|--------|-------|
 | 1 | BetaList | 2026-04-07 | 75 | Pending review | Lite tier ($39), dofollow |
 | 2 | Crunchbase | 2026-04-07 | 91 | Live ✓ (confirmed 2026-04-19) | Full profile, strong credibility backlink |
-| 3 | Product Hunt | 2026-04-08 | 91 | Submitted | Direct submit by Stephen. Not in Google index as of 2026-06-10 (PH bot-walls all checks) — verify manually |
+| 3 | Product Hunt | 2026-04-08 | 91 | Listing expired | Direct submit by Stephen. WENT LIVE after submission; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10). Final status — not an active backlink, no further checks. |
 | 4 | SaaSHub | 2026-04-08 | 68 | Live ✓ (2026-04-16) | Free tier |
 | 5 | SourceForge | 2026-04-09 | 92 | Blocked | Phone verification required |
 | 6 | AppSumo | 2026-04-09 | 90 | No link found — review | Launch application submitted 62 days ago; appsumo.com/products/scoring-zone is a soft-404 (no listing created) |
@@ -34,7 +34,7 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 |---|-----------|-----|------|--------|-------|
 | 1 | BetaList | https://betalist.com/startups/scoring-zone | 2026-04-07 | Live ✓ (confirmed ~2026-06) | Lite tier ($39), DR 75 dofollow. Listing visible at betalist.com/startups/scoring-zone |
 | 2 | Crunchbase | https://www.crunchbase.com/organization/scoring-zone | 2026-04-07 | Live ✓ | DR 91. Listing confirmed live 2026-04-19. Full description, website link, LinkedIn. |
-| 3 | Product Hunt | — | 2026-04-08 | Submitted (verify) | DR 91. Stephen submitted directly. All automated checks bot-walled (Cloudflare); not in the Google index as of 2026-06-10, so the listing likely never went live — verify manually. |
+| 3 | Product Hunt | — | 2026-04-08 | Listing expired | DR 91. Stephen submitted directly and the listing WENT LIVE; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10), which is also why nothing is indexed now. Final human-written status — livecheck must not re-flag this. |
 | 4 | SaaSHub | — | 2026-04-08 | Live ✓ | DR 68. Free tier. Confirmed live 2026-04-16. |
 | 5 | SourceForge | — | 2026-04-09 | Blocked | DR 92. Requires phone verification — cannot complete. |
 | 6 | AppSumo | — | 2026-04-09 | No link found — review | DR 90. Apply to Launch submitted 2026-04-09; livecheck 2026-06-10: appsumo.com/products/scoring-zone/ returns a soft-404 and nothing is indexed — application appears not actioned. Follow up with AppSumo or drop. |

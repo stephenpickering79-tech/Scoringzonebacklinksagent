@@ -71,43 +71,59 @@ _WEBSITE_SELECTORS = (
     'input[placeholder*="website" i], input[placeholder*="url" i]'
 )
 _EMAIL_SELECTORS = (
-    'input[name*="email" i], input[type="email"], input[placeholder*="email" i]'
+    'input[name*="email" i], input[type="email"], input[placeholder*="email" i], '
+    'input[name="user[email]"], input[id*="email" i]'
 )
 
 # Brand assets for forms that want a logo/screenshot upload (never gated on).
 _ASSETS_DIR = Path(__file__).parent / "assets"
 
 _LOGIN_LINK_SELECTORS = [
-    'a[href*="login" i]', 'a[href*="signin" i]', 'a[href*="sign-in" i]',
+    'a[href*="login" i]', 'a[href*="signin" i]', 'a[href*="sign-in" i]', 'a[href*="sign_in" i]',
     'a:has-text("Log in")', 'a:has-text("Login")', 'a:has-text("Sign in")',
 ]
 _SIGNUP_LINK_SELECTORS = [
-    'a[href*="signup" i]', 'a[href*="sign-up" i]', 'a[href*="register" i]',
+    'a[href*="signup" i]', 'a[href*="sign-up" i]', 'a[href*="sign_up" i]', 'a[href*="register" i]',
     'a[href*="join" i]', 'a:has-text("Sign up")', 'a:has-text("Sign Up")',
     'a:has-text("Register")', 'a:has-text("Create account")', 'a:has-text("Get started")',
     'a:has-text("Join")',
 ]
 _LOGIN_TEXT_PATTERNS = ("sign in to", "log in to", "must be logged in", "members only")
 _SIGNUP_TEXT_PATTERNS = ("create an account to", "sign up to", "register to", "join to submit")
-_LOGIN_URL_RE = re.compile(r"/(login|signin|sign-in|signup|sign-up|register)\b", re.I)
+_LOGIN_URL_RE = re.compile(r"/(login|signin|sign-in|sign_in|signup|sign-up|sign_up|register)\b", re.I)
 _LOGIN_FAIL_PATTERNS = ("incorrect password", "invalid login", "invalid email or password",
                         "wrong password", "try again")
 # OAuth-only gates we cannot self-register through (no email/password form).
-_OAUTH_ONLY_RE = re.compile(r"(sign|log)\s*(in|up)\s*with\s*(google|github|apple|facebook|x|twitter|linkedin)",
-                            re.IGNORECASE)
+# Any "<verb> with <provider>" is an OAuth button — a provider whitelist kept missing
+# entries (dev.to has "Continue with MyMLH"). Only "with email/password" stays clickable.
+_OAUTH_ONLY_RE = re.compile(
+    r"(sign\s*(in|up)|log\s*in|continue|register)\s+with\s+(?!e-?mail|password|username)\S+",
+    re.IGNORECASE)
+# Ordered most-specific first. "Create account"/submit types before the generic
+# "Sign up" text (which also matches OAuth "Sign up with Google" buttons — those are
+# additionally filtered out by the OAuth-text guard in _click_signup_submit()).
 _SIGNUP_SUBMIT_SELECTORS = [
-    'button:has-text("Sign up")', 'button:has-text("Sign Up")', 'button:has-text("Create account")',
-    'button:has-text("Create Account")', 'button:has-text("Register")', 'button:has-text("Join")',
-    'button:has-text("Get started")', 'button:has-text("Continue")', 'button[type="submit"]',
-    'input[type="submit"]', 'form button',
+    'button:has-text("Create account")', 'button:has-text("Create Account")',
+    'button:has-text("Create my account")', 'button:has-text("Create free account")',
+    'button[type="submit"]', 'input[type="submit"]',
+    'button:has-text("Sign up")', 'button:has-text("Sign Up")',
+    'button:has-text("Register")', 'button:has-text("Join")',
+    'button:has-text("Get started")', 'button:has-text("Continue")', 'form button',
 ]
 _PASSWORD_SELECTORS = ('input[type="password"]:not([name*="confirm" i]):not([id*="confirm" i])'
                        ':not([placeholder*="confirm" i]):not([name*="repeat" i])')
 _CONFIRM_PW_SELECTORS = ('input[type="password"][name*="confirm" i], input[type="password"][id*="confirm" i], '
                          'input[type="password"][placeholder*="confirm" i], input[type="password"][name*="repeat" i]')
-_FULLNAME_SELECTORS = ('input[name*="name" i]:not([name*="company" i]):not([name*="user" i]), '
+# name$="[name]" catches Rails-nested fields (user[name]) that the :not([name*="user"])
+# guard would otherwise exclude; it cannot match user[username] (no "[name]" substring).
+_FULLNAME_SELECTORS = ('input[name$="[name]" i], '
+                       'input[name*="name" i]:not([name*="company" i]):not([name*="user" i]), '
                        'input[id*="fullname" i], input[placeholder*="full name" i], '
                        'input[placeholder*="your name" i], input[autocomplete="name"]')
+# Precise username matches only — a bare name*="user" matches EVERY field of a
+# Rails-style form (user[name], user[password], ...) and filled the wrong one.
+_USERNAME_SELECTORS = ('input[name*="username" i]:not([type="email"]), '
+                       'input[id*="username" i], input[autocomplete="username"]:not([type="email"])')
 
 
 def _slug(text: str) -> str:
@@ -138,17 +154,37 @@ def _wait_for_form(page) -> bool:
         return False
 
 
+_SIGNUP_URL_RE = re.compile(r"/(signup|sign-up|sign_up|register|join|create-account)\b", re.I)
+
+
 def _detect_auth_wall(page) -> str | None:
-    """Return "login" / "signup" when the page demands an account, else None."""
+    """Return "login" / "signup" when the page demands an account, else None.
+
+    A visible email+password pair (or two password fields) is treated as a signup
+    form even when the page has no keyword text — this is what makes JS-rendered
+    Rails/Devise signup pages reliably trigger self-registration."""
     try:
-        if _LOGIN_URL_RE.search(page.url or ""):
+        url = page.url or ""
+        # A rendered signup form: email + password, or password + confirm-password.
+        has_pw = bool(page.query_selector('input[type="password"]'))
+        n_pw = len(page.query_selector_all('input[type="password"]'))
+        has_email = bool(page.query_selector('input[type="email"], input[name*="email" i]'))
+        if (has_pw and has_email and _SIGNUP_URL_RE.search(url)) or n_pw >= 2:
+            return "signup"
+
+        if _SIGNUP_URL_RE.search(url):
+            return "signup"
+        if _LOGIN_URL_RE.search(url):
             return "login"
+
         txt = (page.inner_text("body")[:3000] or "").lower()
         if any(p in txt for p in _SIGNUP_TEXT_PATTERNS):
             return "signup"
         if any(p in txt for p in _LOGIN_TEXT_PATTERNS):
             return "login"
-        if page.query_selector('input[type="password"]'):
+        if has_pw and has_email:
+            return "signup"
+        if has_pw:
             return "login"
     except Exception:
         pass
@@ -300,10 +336,25 @@ def _attempt_login(page, client, sid: str, slug: str, screenshots: list) -> bool
     return False
 
 
+def _has_password_field(page, *, wait_ms: int = 0) -> bool:
+    """Password field present now, optionally waiting up to wait_ms for it to mount
+    (JS-rendered signup forms often appear a beat after load)."""
+    if wait_ms:
+        try:
+            page.wait_for_selector('input[type="password"]', timeout=wait_ms)
+        except Exception:
+            pass
+    try:
+        return bool(page.query_selector('input[type="password"]'))
+    except Exception:
+        return False
+
+
 def _open_signup(page) -> bool:
-    """Navigate to a signup form if we're not already on one. Returns True if a
-    password field is present afterwards (i.e. a self-serve email/password signup)."""
-    if page.query_selector('input[type="password"]'):
+    """Navigate to a signup form if we're not already on one. Returns True once a
+    password field is present (i.e. a self-serve email/password signup)."""
+    # Wait for a JS-rendered form on the current page before deciding to navigate.
+    if _has_password_field(page, wait_ms=8000):
         return True
     for sel in _SIGNUP_LINK_SELECTORS:
         try:
@@ -311,32 +362,161 @@ def _open_signup(page) -> bool:
             if link and link.is_visible():
                 print(f"Opening signup via: {sel}")
                 link.click()
-                page.wait_for_load_state("domcontentloaded", timeout=15000)
-                time.sleep(2)
-                break
+                try:
+                    page.wait_for_load_state("networkidle", timeout=12000)
+                except Exception:
+                    pass
+                if _has_password_field(page, wait_ms=8000):
+                    return True
         except Exception:
             continue
-    return bool(page.query_selector('input[type="password"]'))
+    return _has_password_field(page, wait_ms=3000)
+
+
+def _click_signup_submit(page) -> bool:
+    """Click the real account-creation button, skipping OAuth ("...with Google") buttons
+    that also match a 'Sign up' text selector. Returns True if a button was clicked.
+
+    First pass is scoped to the form holding the password field — pages also carry
+    search/newsletter forms whose submit buttons must never be the click target."""
+    for scope in ('form:has(input[type="password"]) ', ''):
+        for sel in _SIGNUP_SUBMIT_SELECTORS:
+            try:
+                for btn in page.query_selector_all(scope + sel):
+                    if not btn.is_visible():
+                        continue
+                    # input[type=submit] has no inner text — its label is the value attr.
+                    txt = ((btn.inner_text() or "").strip()
+                           or (btn.get_attribute("value") or "").strip())
+                    if _OAUTH_ONLY_RE.search(txt):  # "Sign up/Continue with Google/Apple…"
+                        continue
+                    print(f"Submitting signup: {scope + sel} ({txt[:30]!r})")
+                    btn.click()
+                    return True
+            except Exception:
+                continue
+    return False
+
+
+_CONSENT_RE = re.compile(r"term|agree|privacy|accept|consent|polic|tos|rules|gdpr", re.I)
+
+
+def _checkbox_context_text(box) -> str:
+    """name/id/aria-label PLUS the associated label / wrapper text — custom-styled
+    consent boxes rarely put 'terms' in the input's own attributes."""
+    try:
+        return (box.evaluate(
+            """el => {
+                const bits = [el.name || '', el.id || '', el.getAttribute('aria-label') || ''];
+                if (el.id) {
+                    const lab = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+                    if (lab) bits.push(lab.innerText || '');
+                }
+                const wrap = el.closest('label') || el.parentElement;
+                if (wrap) bits.push((wrap.innerText || '').slice(0, 200));
+                return bits.join(' ');
+            }""") or "")
+    except Exception:
+        return ""
+
+
+def _tick_checkbox(box) -> bool:
+    """Tick a checkbox, surviving the custom-styled pattern where the real input is
+    hidden behind a span (check() fails on invisible elements) — click its label or
+    force the state + change event instead."""
+    try:
+        if box.is_checked():
+            return True
+    except Exception:
+        pass
+    try:
+        box.check(timeout=2000)
+        return True
+    except Exception:
+        pass
+    try:
+        box.evaluate(
+            """el => {
+                const lab = (el.id && document.querySelector('label[for="' + CSS.escape(el.id) + '"]'))
+                            || el.closest('label');
+                if (lab) lab.click(); else el.click();
+                if (!el.checked) {
+                    el.checked = true;
+                    el.dispatchEvent(new Event('input', {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            }""")
+        return bool(box.is_checked())
+    except Exception:
+        return False
+
+
+def _accept_signup_checkboxes(page, require_keyword: bool = True) -> int:
+    """Tick consent checkboxes; returns how many were ticked. With
+    require_keyword=False every unchecked box on the form is ticked — the
+    rejected-signup fallback (an extra newsletter opt-in beats a failed signup)."""
+    ticked = 0
+    try:
+        boxes = page.query_selector_all('input[type="checkbox"]')
+    except Exception:
+        return 0
+    for box in boxes:
+        try:
+            if box.is_checked():
+                continue
+            if require_keyword and not _CONSENT_RE.search(_checkbox_context_text(box)):
+                continue
+            if _tick_checkbox(box):
+                ticked += 1
+        except Exception:
+            continue
+    return ticked
+
+
+def _signup_rejection(page) -> str:
+    """'' if the signup looks accepted; otherwise why it appears rejected."""
+    try:
+        err_el = page.query_selector(
+            '[class*="error" i], [class*="invalid" i], [role="alert"], .field_with_errors')
+        if err_el and err_el.is_visible():
+            etext = (err_el.inner_text() or "").strip()[:160]
+            if etext:
+                return f"signup rejected: {etext}"
+    except Exception:
+        pass
+    try:
+        if page.query_selector('input[type="password"]'):
+            return "signup form still present after submit — registration not accepted"
+    except Exception:
+        pass
+    return ""
 
 
 def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
-                   screenshots: list) -> bool:
+                   screenshots: list) -> dict:
     """Autonomously create an account: generate a password, fill + submit the signup
     form, store the login in Steel, complete any email verification, and end logged in.
-    Returns True on success. Account password is only ever held by Steel."""
+    The account password is only ever held by Steel.
+
+    Returns a result dict: {logged_in, registered, credential_stored, verification
+    ("link"|"code"|None), verified, reason}."""
+    result = {"logged_in": False, "registered": False, "credential_stored": False,
+              "verification": None, "verified": False, "reason": ""}
     # OAuth-only walls (no email/password form) can't be self-registered.
     try:
         body = (page.inner_text("body")[:3000] or "")
         if _OAUTH_ONLY_RE.search(body) and not page.query_selector('input[type="password"]') \
                 and not _open_signup(page):
             print("Signup is OAuth-only — cannot self-register.")
-            return False
+            result["reason"] = "OAuth-only signup (no email/password form)"
+            return result
     except Exception:
         pass
 
     if not _open_signup(page):
         print("No email/password signup form found.")
-        return False
+        result["reason"] = "no email/password signup form found"
+        return result
 
     password = site_credentials.generate_password()
     signup_started = datetime.now(timezone.utc)
@@ -350,21 +530,14 @@ def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
 
     fill(_EMAIL_SELECTORS, CONTACT_EMAIL)
     fill(_FULLNAME_SELECTORS, CONTACT_NAME)
-    fill('input[name*="user" i]:not([type="email"]), input[id*="username" i]',
-         "scoringzone")
+    fill(_USERNAME_SELECTORS, "scoringzone")
     fill(_PASSWORD_SELECTORS, password)
     fill(_CONFIRM_PW_SELECTORS, password)
-    # Accept terms / newsletter checkboxes — required to submit on many signups.
-    try:
-        for box in page.query_selector_all('input[type="checkbox"]'):
-            try:
-                nm = ((box.get_attribute("name") or "") + (box.get_attribute("id") or "")).lower()
-                if any(k in nm for k in ("term", "agree", "privacy", "accept", "tos")) and not box.is_checked():
-                    box.check(timeout=2000)
-            except Exception:
-                continue
-    except Exception:
-        pass
+    # Accept terms / consent checkboxes — required to submit on many signups.
+    if not _accept_signup_checkboxes(page):
+        # No box matched a consent keyword: tick whatever is there rather than
+        # submit with a required agreement unticked.
+        _accept_signup_checkboxes(page, require_keyword=False)
 
     try:
         page.screenshot(path=f"generic_{slug}_signup.png", full_page=True)
@@ -372,31 +545,58 @@ def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
     except Exception:
         pass
 
-    clicked = False
-    for sel in _SIGNUP_SUBMIT_SELECTORS:
-        try:
-            btn = page.query_selector(sel)
-            if btn and btn.is_visible():
-                print(f"Submitting signup: {sel}")
-                btn.click()
-                clicked = True
-                break
-        except Exception:
-            continue
+    clicked = _click_signup_submit(page)
     if not clicked:
         print("No signup submit button found.")
-        return False
+        result["reason"] = "filled signup form but no submit button matched"
+        return result
 
-    wait_for_captchas(client, sid)
+    result["registered"] = True
+    if not wait_for_captchas(client, sid):  # an on-form CAPTCHA may block the submit
+        wait_for_captchas(client, sid, timeout_sec=60)
     time.sleep(4)
     try:
         page.wait_for_load_state("networkidle", timeout=15000)
     except Exception:
         pass
 
+    # Capture the post-submit state + any visible validation error (a signup is often
+    # rejected here for an unticked terms box, weak password, or an unsolved on-form CAPTCHA).
+    try:
+        page.screenshot(path=f"generic_{slug}_postsubmit.png", full_page=True)
+        screenshots.append(f"generic_{slug}_postsubmit.png")
+    except Exception:
+        pass
+    result["reason"] = _signup_rejection(page)
+    if result["reason"]:
+        # One retry: a rejected signup that left the form on screen is usually an
+        # unticked consent box, or an on-form CAPTCHA solved *after* the click.
+        # Tick everything, re-fill anything the site blanked, re-click once.
+        print(f"[auto_register] {result['reason']} — retrying once")
+        _accept_signup_checkboxes(page, require_keyword=False)
+        fill(_EMAIL_SELECTORS, CONTACT_EMAIL)
+        fill(_PASSWORD_SELECTORS, password)
+        fill(_CONFIRM_PW_SELECTORS, password)
+        if _click_signup_submit(page):
+            wait_for_captchas(client, sid)
+            time.sleep(4)
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            result["reason"] = _signup_rejection(page)
+            try:
+                page.screenshot(path=f"generic_{slug}_postsubmit2.png", full_page=True)
+                screenshots.append(f"generic_{slug}_postsubmit2.png")
+            except Exception:
+                pass
+    if result["reason"]:
+        print(f"[auto_register] {result['reason']}")
+
     # Store the login in Steel immediately — even if verification is still pending,
     # the credential is now reusable and Steel can auto-inject it on future logins.
-    site_credentials.store_credential(url, CONTACT_EMAIL, password, client=client)
+    result["credential_stored"] = site_credentials.store_credential(
+        url, CONTACT_EMAIL, password, client=client)
     site_credentials.record_account(url, CONTACT_EMAIL, verified=False)
 
     # Email verification, if the inbox secret is configured. Sites use either a
@@ -404,12 +604,20 @@ def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
     if email_inbox.is_configured():
         found = email_inbox.find_verification(url, since=signup_started, timeout_sec=180)
         link, code = found.get("link"), found.get("code")
-        code_field = page.query_selector(
-            'input[name*="code" i], input[id*="code" i], input[name*="otp" i], '
-            'input[autocomplete="one-time-code"], input[placeholder*="code" i]')
+        # The session may have hit its timeout during the email wait — a dead page
+        # must degrade to "verification incomplete", never crash the whole submit.
+        try:
+            code_field = page.query_selector(
+                'input[name*="code" i], input[id*="code" i], input[name*="otp" i], '
+                'input[autocomplete="one-time-code"], input[placeholder*="code" i]')
+        except Exception as e:
+            print(f"[auto_register] page gone after email wait ({type(e).__name__}) — "
+                  "cannot finish on-page verification.")
+            code_field = None
         if code and code_field:
             try:
                 print("Entering verification code from email.")
+                result["verification"] = "code"
                 code_field.fill(code, timeout=4000)
                 for sel in ("button:has-text('Verify')", "button:has-text('Confirm')",
                             "button:has-text('Submit')", 'button[type="submit"]', "form button"):
@@ -420,15 +628,18 @@ def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
                 wait_for_captchas(client, sid)
                 time.sleep(3)
                 site_credentials.mark_verified(url)
+                result["verified"] = True
             except Exception as e:
                 print(f"Could not enter verification code: {e}")
         elif link:
             try:
                 print("Visiting verification link.")
+                result["verification"] = "link"
                 page.goto(link, wait_until="domcontentloaded", timeout=45000)
                 wait_for_captchas(client, sid)
                 time.sleep(3)
                 site_credentials.mark_verified(url)
+                result["verified"] = True
             except Exception as e:
                 print(f"Could not open verification link: {e}")
         else:
@@ -442,9 +653,12 @@ def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
         _wait_for_form(page)
     except Exception:
         pass
-    ok = _looks_logged_in(page)
-    print(f"Auto-register {'succeeded' if ok else 'incomplete (may need email verification)'}.")
-    return ok
+    try:
+        result["logged_in"] = _looks_logged_in(page)
+    except Exception:
+        result["logged_in"] = False
+    print(f"Auto-register {'succeeded' if result['logged_in'] else 'incomplete (may need email verification)'}.")
+    return result
 
 
 def submit(name: str, url: str, *, dry_run: bool = False):
@@ -476,7 +690,9 @@ def submit(name: str, url: str, *, dry_run: bool = False):
         # No login yet — persist the profile so an auto-created account stays logged in.
         session_opts["persist_profile"] = True
 
-    with steel_page(solve_captcha=True, api_timeout_ms=300_000, **session_opts) as (pw, browser, page, client, sid):
+    # 15 min: auto-registration alone can spend ~5 (form + CAPTCHAs + 180s email wait)
+    # and the submission itself still has to happen in the same session.
+    with steel_page(solve_captcha=True, api_timeout_ms=900_000, **session_opts) as (pw, browser, page, client, sid):
         screenshots: list[str] = []
 
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -501,8 +717,9 @@ def submit(name: str, url: str, *, dry_run: bool = False):
         if wall and has_creds:
             logged_in = _attempt_login(page, client, sid, slug, screenshots)
         elif wall and not dry_run:
-            logged_in = _auto_register(page, url, domain, client, sid, slug, screenshots)
-            if logged_in:
+            reg = _auto_register(page, url, domain, client, sid, slug, screenshots)
+            logged_in = reg.get("logged_in", False)
+            if reg.get("registered"):
                 has_creds = True  # account now exists for the abort-reason logic below
         if logged_in:
             new_profile = last_session_info().get("profile_id")
