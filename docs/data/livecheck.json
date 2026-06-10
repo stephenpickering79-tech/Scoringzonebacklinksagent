@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-06-10T17:10:16",
+  "generated_at": "2026-06-10T20:27:50",
   "summary": {
     "live": 8,
     "watching": 3,
-    "attention": 2
+    "attention": 1
   },
   "live": [
     {
@@ -143,15 +143,6 @@
       "problem": "gave_up",
       "status_label": "No link found — review",
       "last_checked": "2026-06-10T16:46:06",
-      "attempts": 2
-    },
-    {
-      "name": "AppSumo",
-      "url": "https://appsumo.com/products/scoring-zone/",
-      "listing_url": null,
-      "problem": "gave_up",
-      "status_label": "No link found — review",
-      "last_checked": "2026-06-10T16:45:58",
       "attempts": 2
     }
   ]

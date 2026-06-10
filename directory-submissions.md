@@ -12,7 +12,6 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 | 3 | Product Hunt | 2026-04-08 | 91 | Listing expired | Direct submit by Stephen. WENT LIVE after submission; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10). Final status — not an active backlink, no further checks. |
 | 4 | SaaSHub | 2026-04-08 | 68 | Live ✓ (2026-04-16) | Free tier |
 | 5 | SourceForge | 2026-04-09 | 92 | Blocked | Phone verification required |
-| 6 | AppSumo | 2026-04-09 | 90 | No link found — review | Launch application submitted 62 days ago; appsumo.com/products/scoring-zone is a soft-404 (no listing created) |
 | 7 | Bright Data | 2026-04-10 | — | No link found — review | Submitted 61 days ago; no listing URL ever recorded and nothing indexed — follow up or drop |
 | 8 | Turbo0 | 2026-04-14 | 78 | Live ✓ | Free, dofollow, reciprocal required |
 | 9 | PeerPush | 2026-04-14 | 73 | Live ✓ | Paid $35, dofollow, SEO/AEO optimised |
@@ -37,7 +36,6 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 | 3 | Product Hunt | — | 2026-04-08 | Listing expired | DR 91. Stephen submitted directly and the listing WENT LIVE; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10), which is also why nothing is indexed now. Final human-written status — livecheck must not re-flag this. |
 | 4 | SaaSHub | — | 2026-04-08 | Live ✓ | DR 68. Free tier. Confirmed live 2026-04-16. |
 | 5 | SourceForge | — | 2026-04-09 | Blocked | DR 92. Requires phone verification — cannot complete. |
-| 6 | AppSumo | — | 2026-04-09 | No link found — review | DR 90. Apply to Launch submitted 2026-04-09; livecheck 2026-06-10: appsumo.com/products/scoring-zone/ returns a soft-404 and nothing is indexed — application appears not actioned. Follow up with AppSumo or drop. |
 | 7 | Bright Data | — | 2026-04-10 | No link found — review | Livecheck 2026-06-10: no listing URL was ever recorded for this submission and site:brightdata.com has nothing indexed — nothing checkable. Identify what was submitted or drop. |
 | 8 | Turbo0 | — | 2026-04-14 | Live ✓ | DR 78. Free, dofollow. Reciprocal backlink required. |
 | 9 | PeerPush | — | 2026-04-14 | Live ✓ | DR 73. Paid $35. Dofollow, SEO & AEO optimised. |
@@ -70,7 +68,7 @@ See also the full living strategy in `backlink-strategy.md` (created for this pr
 
 ### Next Wave Research
 - Additional golf-specific directories, coach association resources, college golf program tool lists, "putting training aids" or "short game practice" resource pages.
-- Re-check status on BetaList, Product Hunt, F6S, AppSumo.
+- Re-check status on BetaList, Product Hunt, F6S.
 
 ## Editorial / Content-driven backlinks (existing)
 

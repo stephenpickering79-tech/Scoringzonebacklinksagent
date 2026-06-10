@@ -37,6 +37,10 @@ MD_PATH = BASE_DIR / "directory-submissions.md"
 SESSIONS_LOG = DATA_DIR / "sessions.jsonl"
 APPROVALS_FILE = DATA_DIR / "approvals.json"
 SUBMISSION_LOG = DATA_DIR / "submission_log.json"
+# Submissions to suppress from the Submissions/Live-Links tabs entirely (e.g. retired
+# or too-expensive directories). Committed names so the filter survives the Railway
+# volume's submission_log/livecheck overlays that would otherwise resurface the row.
+REMOVED_SUBMISSIONS_FILE = BASE_DIR / "removed_submissions.json"
 
 # Number of session-id characters to keep in the public (committed) JSON.
 SESSION_ID_PREFIX = 8
@@ -166,7 +170,26 @@ def build_submissions() -> list[dict]:
     submissions = _merge_submission_log(submissions)
     # Also fold in everything you've approved / the agent has acted on (data/approvals.json) so the
     # Submissions tab is the unified record: curated history + approved/submitting/needs-manual/error.
-    return _merge_approvals(submissions)
+    submissions = _merge_approvals(submissions)
+    # Drop explicitly-removed submissions last, so a row can't slip back in via the
+    # log/approvals overlays (which live on the Railway volume, not the repo).
+    removed = _removed_submission_names()
+    if removed:
+        submissions = [s for s in submissions
+                       if (s.get("name") or "").strip().lower() not in removed]
+    return submissions
+
+
+def _removed_submission_names() -> set:
+    """Lower-cased submission names to suppress (removed_submissions.json)."""
+    try:
+        if REMOVED_SUBMISSIONS_FILE.exists():
+            data = json.loads(REMOVED_SUBMISSIONS_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return {str(n).strip().lower() for n in data if str(n).strip()}
+    except Exception as e:
+        print(f"[dashboard] could not read removed_submissions.json: {e}")
+    return set()
 
 
 def _sub_key(name: str, url: str) -> str:
