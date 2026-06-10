@@ -503,9 +503,11 @@ def run_daily_checks() -> dict:
                 continue
             if not st.get("submitted_date") and row.get("date"):
                 state.setdefault(key, {})["submitted_date"] = str(row["date"])[:10]
-        elif bucket == "live":
-            # Only verify live rows with a CONCRETE listing URL — never guess
-            # paths just to second-guess a human "Live ✓".
+        elif bucket == "live" or "lost" in status.lower():
+            # Live rows, plus "Link lost — review" rows so a wrongly-lost listing can
+            # RECOVER on a later sweep (e.g. a bot wall that blocked an earlier check
+            # but search-index now confirms). Only with a CONCRETE listing URL — never
+            # guess paths just to second-guess a human "Live ✓".
             listing = st.get("listing_url") or (url if _looks_like_listing_url(url) else "")
             if not listing:
                 continue
