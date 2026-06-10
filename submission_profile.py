@@ -15,7 +15,10 @@ import hashlib
 COMPANY_NAME = "Scoring Zone"
 WEBSITE = "https://www.scoringzone.net"
 CONTACT_NAME = "Stephen Pickering"
-CONTACT_EMAIL = "stephenpickering79@gmail.com"
+# Dedicated agent inbox: the submission/registration email AND the mailbox read over
+# IMAP for verification links/codes (email_inbox.py falls back to this when IMAP_EMAIL
+# is unset). Keep CONTACT_EMAIL and the IMAP_PASSWORD/IMAP_EMAIL config on the same account.
+CONTACT_EMAIL = "scoringzone01@gmail.com"
 
 SHORT_DESC = (
     "Scoring Zone is the dedicated short-game performance app for golfers — scored drills, "

@@ -73,7 +73,7 @@ Get the app: Scan the QR on the homepage or visit scoringzone.app (PWA)"""
 
 TAGS = "Golf App | Short Game Training | Putting Practice | Golf Practice Tools | Golf Improvement App | Pressure Training"
 CONTACT_NAME = "Stephen Pickering"
-CONTACT_EMAIL = "stephenpickering79@gmail.com"
+CONTACT_EMAIL = "scoringzone01@gmail.com"  # dedicated agent inbox (see submission_profile.py)
 
 DONATION_NOTE = "Happy to support the charitable partners with a small donation."
 

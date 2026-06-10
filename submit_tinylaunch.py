@@ -66,7 +66,7 @@ Get the app: Scan the QR on the homepage or visit scoringzone.app (PWA)"""
 
 TAGS = "Golf App, Short Game Training, Putting Practice, Golf Practice Tools, Golf Improvement, Pressure Training"
 FOUNDER = "Stephen Pickering"
-EMAIL = "stephenpickering79@gmail.com"
+EMAIL = "scoringzone01@gmail.com"  # dedicated agent inbox (see submission_profile.py)
 
 def submit() -> str:
     """Run the Tinylaunch submission. Returns the outcome string
