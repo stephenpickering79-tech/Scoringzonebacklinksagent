@@ -12,7 +12,6 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 | 3 | Product Hunt | 2026-04-08 | 91 | Listing expired | Direct submit by Stephen. WENT LIVE after submission; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10). Final status — not an active backlink, no further checks. |
 | 4 | SaaSHub | 2026-04-08 | 68 | Live ✓ (2026-04-16) | Free tier |
 | 5 | SourceForge | 2026-04-09 | 92 | Blocked | Phone verification required |
-| 7 | Bright Data | 2026-04-10 | — | No link found — review | Submitted 61 days ago; no listing URL ever recorded and nothing indexed — follow up or drop |
 | 8 | Turbo0 | 2026-04-14 | 78 | Live ✓ | Free, dofollow, reciprocal required |
 | 9 | PeerPush | 2026-04-14 | 73 | Live ✓ | Paid $35, dofollow, SEO/AEO optimised |
 | 10 | SaasHunt | 2026-04-14 | 49 | Live ✓ (#1 Project of the Day 2026-04-19) | Paid $9, badge in footer |
@@ -36,7 +35,6 @@ Compiled from Live/Submitted table + recent Steel discovery (pure directory/list
 | 3 | Product Hunt | — | 2026-04-08 | Listing expired | DR 91. Stephen submitted directly and the listing WENT LIVE; Product Hunt rotates listings off the site after a period (confirmed by Stephen 2026-06-10), which is also why nothing is indexed now. Final human-written status — livecheck must not re-flag this. |
 | 4 | SaaSHub | — | 2026-04-08 | Live ✓ | DR 68. Free tier. Confirmed live 2026-04-16. |
 | 5 | SourceForge | — | 2026-04-09 | Blocked | DR 92. Requires phone verification — cannot complete. |
-| 7 | Bright Data | — | 2026-04-10 | No link found — review | Livecheck 2026-06-10: no listing URL was ever recorded for this submission and site:brightdata.com has nothing indexed — nothing checkable. Identify what was submitted or drop. |
 | 8 | Turbo0 | — | 2026-04-14 | Live ✓ | DR 78. Free, dofollow. Reciprocal backlink required. |
 | 9 | PeerPush | — | 2026-04-14 | Live ✓ | DR 73. Paid $35. Dofollow, SEO & AEO optimised. |
 | 10 | SaasHunt | https://saashunt.best/projects/scoring-zone | 2026-04-14 | Live ✓ | DR 49. Paid $9. #1 Project of the Day 2026-04-19 — badge added to footer. |
