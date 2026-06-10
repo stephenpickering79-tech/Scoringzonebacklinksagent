@@ -81,6 +81,10 @@ def load_config():
         # Discoveries scoring below this are hidden from the dashboard (still logged to
         # data/rejected_*.json). Tune on Railway without a code change.
         "discovery_min_score": int(os.getenv("DISCOVERY_MIN_SCORE", "60")),
+        # CURRENT PHASE: only surface targets the agent can submit to itself. Discoveries the
+        # LLM marks submission_method email/none (articles, newsletters, editorial = outreach
+        # targets, a later phase — see TODO.md) are hidden to data/rejected_*.json.
+        "submittable_only": os.getenv("SUBMITTABLE_ONLY", "true").strip().lower() in ("1", "true", "yes"),
         "mode": os.getenv("AGENT_MODE", "propose").lower(),
         "approved_targets": os.getenv("APPROVED_TARGETS", "").strip(),
         "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", "").strip(),
@@ -191,8 +195,17 @@ def main():
         # Apply the display threshold. Rule-based fallback scores are uniform, so there the
         # spam/quality heuristics decide instead of the score.
         threshold = config["discovery_min_score"]
+        outreach_hidden = 0
         if used_llm:
             hidden = [s for s in scored_new if s.get("score", 0) < threshold]
+            if config["submittable_only"]:
+                # Current phase: only self-serve submission targets. Anything the LLM marks
+                # email/none is an outreach target (later phase — TODO.md) → hide it too.
+                outreach = [s for s in scored_new
+                            if s.get("score", 0) >= threshold
+                            and s.get("submission_method") in ("email", "none")]
+                outreach_hidden = len(outreach)
+                hidden += outreach
         else:
             hidden = [s for s in scored_new
                       if s.get("spam_risk") == "high" or s.get("quality_tier") == "Avoid"]
@@ -204,7 +217,8 @@ def main():
         if hidden:
             with open(rejected_path, "w") as f:
                 json.dump(hidden, f, indent=2)
-            log(f"{len(hidden)} discoveries hidden below score {threshold} → {rejected_path.name}")
+            log(f"{len(hidden)} discoveries hidden ({len(hidden) - outreach_hidden} below score "
+                f"{threshold}, {outreach_hidden} outreach-phase) → {rejected_path.name}")
 
         # Mark every surfaced discovery as needing review (not auto-vetted like curated targets).
         for s in scored_new:

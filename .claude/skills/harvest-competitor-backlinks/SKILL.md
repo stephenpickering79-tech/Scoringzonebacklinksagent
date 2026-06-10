@@ -62,6 +62,11 @@ Requires the Ubersuggest MCP tools (only available in Claude Code sessions). Che
    - `replicability_reason`: one line, specific (this is shown to the scoring LLM and on the
      dashboard tooltip).
 
+   Keep classifying ALL categories — but note the agent currently consumes only
+   `directory` / `review_site` / `resource_page` / `tool` (see `research.SUBMITTABLE_CATEGORIES`).
+   `roundup` / `blog` / `news` / `other` entries are outreach-phase targets and double as the
+   seed list for the future email-outreach work (TODO.md).
+
 6. **Write the file.** `competitor_backlink_candidates.json` at the repo root. Include ALL kept
    domains (replicable or not — Python filters on the flag). Schema:
 

@@ -28,6 +28,8 @@ Be ruthless about relevance to golf, sports tech, coaches, or serious makers. Ge
 
 If the description includes domain authority (DA) and competitor-link evidence (e.g. "links to thegrint.com but not scoringzone.net"), weigh it: a relevant domain that already links to a competitor golf app is a proven, replicable prospect.
 
+CURRENT PHASE: we only pursue targets where the listing can be submitted directly — a submission form or self-serve profile (submission_method "form" or "profile"). Articles, blog posts, newsletters, roundups, reviews and editorial coverage require email outreach, which is a LATER phase: give those overall_score 40 or below, submission_method "email" or "none", and recommended_action "Outreach — later phase".
+
 Only recommend targets that would meaningfully help authority or drive golfer/maker traffic and signups.
 
 Candidate:
