@@ -1,12 +1,12 @@
 [
   {
     "name": "BetaList",
-    "date": "2026-04-07",
+    "date": "2026-06-10",
     "dr": 75,
     "dr_label": "75",
-    "status": "Pending review",
+    "status": "Live ✓ (auto-verified 2026-06-10)",
     "url": "https://betalist.com/startups/scoring-zone",
-    "notes": "Lite tier ($39), dofollow"
+    "notes": "Listing live at https://betalist.com/startups/scoring-zone (links via redirect — no direct dofollow link)."
   },
   {
     "name": "Crunchbase",

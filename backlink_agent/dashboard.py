@@ -26,7 +26,7 @@ from __future__ import annotations
 import glob
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
@@ -314,6 +314,20 @@ def build_proposals() -> dict:
             "quality_tier": c.get("quality_tier", ""),
             "notes": c.get("notes", ""),
         })
+    # Apply the exclusion lists (same logic research uses) so a Dismissed suggestion
+    # disappears from the page immediately — the day's shortlist file still contains
+    # it, and without this filter it would resurface on every rebuild until the next
+    # research run. Lazy import: research is heavier and must never block the build.
+    try:
+        try:
+            from . import research
+        except ImportError:
+            import research  # type: ignore
+        excluded = research.load_excluded()
+        if excluded:
+            items = [it for it in items if not research._is_excluded(it, excluded)]
+    except Exception as e:
+        print(f"  build_proposals: exclusion filter skipped: {e}")
     return {"date": date, "items": items}
 
 
@@ -403,6 +417,173 @@ def build_approvals() -> list[dict]:
     return out
 
 
+LIVECHECK_STATE = DATA_DIR / "livecheck_state.json"
+
+# Status bucketing — mirrors shared.js statusClass() / livecheck._status_bucket(),
+# except lost/no-link/error get their own "attention" bucket here (the JS renders
+# those red as "blocked"). Do NOT import livecheck at module level: it imports
+# dashboard, so a top-level back-import is circular. Keep all three in sync.
+def _status_bucket(status: str) -> str:
+    s = (status or "").strip().lower()
+    if "live" in s:
+        return "live"
+    if "lost" in s or "no link" in s or "error" in s:
+        return "attention"
+    if "block" in s or "reject" in s:
+        return "blocked"
+    if any(b in s for b in ("submit", "pending", "applied", "ready", "progress")):
+        return "pending"
+    return "other"
+
+
+# Pending-looking statuses that aren't awaiting verification (queue states / not
+# yet submitted) — mirror of livecheck._UNTRACKED_BITS.
+_LC_UNTRACKED_BITS = ("not submitted", "to submit", "needs manual", "submitting",
+                      "submit error", "ready", "prepared", "no link found")
+
+
+def _load_livecheck_state() -> dict:
+    try:
+        if LIVECHECK_STATE.exists():
+            data = json.loads(LIVECHECK_STATE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+    except Exception as e:
+        print(f"  could not read {LIVECHECK_STATE.name}: {e}")
+    return {}
+
+
+def _plus_days(iso_ts: str, days: int) -> str | None:
+    try:
+        return (datetime.fromisoformat(iso_ts) + timedelta(days=days)).date().isoformat()
+    except Exception:
+        return None
+
+
+def build_livecheck(submissions: list[dict] | None = None) -> dict:
+    """The Live Links page data: verification state (data/livecheck_state.json)
+    merged with the Submissions view, with all next-check math done server-side.
+
+    Degrades gracefully when the state file is absent (fresh deploy / local run):
+    live rows still come from submissions, watching rows show "due now".
+    """
+    rows = submissions if submissions is not None else build_submissions()
+    state = _load_livecheck_state()
+
+    try:  # cadence constants from livecheck; lazy import (circular at module level)
+        try:
+            from . import livecheck as _lc
+        except ImportError:
+            import livecheck as _lc  # type: ignore
+        pend_days, live_days = _lc.RECHECK_PENDING_DAYS, _lc.RECHECK_LIVE_DAYS
+    except Exception:
+        pend_days, live_days = 3, 7
+
+    today = datetime.now().date().isoformat()
+    live: list[dict] = []
+    watching: list[dict] = []
+    attention: list[dict] = []
+    seen_attention: set = set()
+
+    for row in rows:
+        name = row.get("name") or ""
+        url = row.get("url") or ""
+        status = row.get("status") or ""
+        st = state.get(_sub_key(name, ""), {})
+        bucket = _status_bucket(status)
+
+        if bucket == "live":
+            dofollow = st.get("dofollow")
+            if dofollow is True:
+                rel = "dofollow"
+            elif dofollow is False:
+                rel = "nofollow"
+            elif st.get("found_at"):
+                rel = "redirect"   # listing verified live, but it links out via a redirect
+            else:
+                rel = "unknown"    # human-confirmed live; livecheck never saw it
+            listing_url = st.get("listing_url") or url or None
+            tracked = bool(st)
+            next_due = None
+            if st.get("listing_url") and st.get("last_checked"):
+                next_due = _plus_days(st["last_checked"], live_days)
+            live.append({
+                "name": name,
+                "listing_url": listing_url,
+                "rel": rel,
+                "found_at": st.get("found_at"),
+                "last_checked": st.get("last_checked"),
+                "next_check_due": next_due,
+                "status_label": status,
+                "tracked": tracked,
+                "dr": row.get("dr"),
+                "date": row.get("date") or "",
+            })
+        elif bucket == "attention":
+            key = _sub_key(name, "")
+            seen_attention.add(key)
+            attention.append({
+                "name": name,
+                "url": url or None,
+                "listing_url": st.get("listing_url"),
+                "problem": "lost" if "lost" in status.lower() else "gave_up",
+                "status_label": status,
+                "last_checked": st.get("last_checked"),
+                "attempts": st.get("attempts", 0),
+            })
+        elif bucket == "pending":
+            s_low = status.strip().lower()
+            if any(b in s_low for b in _LC_UNTRACKED_BITS):
+                continue   # queue state, not awaiting verification
+            if st.get("status") == "gave_up":
+                continue   # surfaced via its log status in attention instead
+            last = st.get("last_checked")
+            next_due = _plus_days(last, pend_days) if last else today
+            submitted = (st.get("submitted_date") or row.get("date")
+                         or st.get("first_tracked") or "")
+            days_waiting = None
+            try:
+                days_waiting = (datetime.now().date()
+                                - datetime.fromisoformat(str(submitted)[:10]).date()).days
+            except Exception:
+                pass
+            watching.append({
+                "name": name,
+                "url": url or None,
+                "status_label": status,
+                "submitted_date": str(submitted)[:10] or None,
+                "last_checked": last,
+                "attempts": st.get("attempts", 0),
+                "next_check_due": next_due,
+                "days_waiting": days_waiting,
+            })
+
+    live.sort(key=lambda x: x.get("found_at") or "", reverse=True)
+    watching.sort(key=lambda x: x.get("next_check_due") or "")
+    attention.sort(key=lambda x: x.get("last_checked") or "", reverse=True)
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "summary": {"live": len(live), "watching": len(watching), "attention": len(attention)},
+        "live": live,
+        "watching": watching,
+        "attention": attention,
+    }
+
+
+def refresh_livecheck() -> None:
+    """Write only docs/data/livecheck.json (after a check-live / daily sweep /
+    mark-submitted) so the Live Links tab reflects it without a full regen."""
+    DOCS_DATA.mkdir(parents=True, exist_ok=True)
+    _write("livecheck.json", build_livecheck())
+
+
+def refresh_proposals() -> None:
+    """Write only docs/data/proposals.json. Called by serve.py after a Dismiss so
+    the excluded suggestion disappears immediately (and stays gone on reload)."""
+    DOCS_DATA.mkdir(parents=True, exist_ok=True)
+    _write("proposals.json", build_proposals())
+
+
 def refresh_approvals() -> None:
     """Write only docs/data/approvals.json. Called by serve.py right after an
     Approve click so the Approved panel reflects it without a full regen."""
@@ -462,12 +643,20 @@ def generate_all() -> None:
     except Exception as e:
         print(f"  build_approvals failed: {e}")
         approvals = []
+    try:
+        livecheck = build_livecheck(submissions)
+    except Exception as e:
+        print(f"  build_livecheck failed: {e}")
+        livecheck = {"generated_at": None,
+                     "summary": {"live": 0, "watching": 0, "attention": 0},
+                     "live": [], "watching": [], "attention": []}
 
     _write("submissions.json", submissions)
     _write("proposals.json", proposals)
     _write("runs.json", runs)
     _write("sessions.json", sessions)
     _write("approvals.json", approvals)
+    _write("livecheck.json", livecheck)
 
     counts = {
         "submissions": len(submissions),
@@ -475,6 +664,7 @@ def generate_all() -> None:
         "runs": len(runs),
         "sessions": len(sessions),
         "approvals": len(approvals),
+        "livecheck": livecheck.get("summary", {}).get("live", 0),
     }
     latest_run_date = proposals.get("date") or (runs[-1]["date"] if runs else None)
     _write("meta.json", build_meta(counts, latest_run_date))

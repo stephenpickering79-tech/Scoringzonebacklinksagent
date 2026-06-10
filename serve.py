@@ -180,6 +180,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                               notes="Marked submitted manually from the dashboard.")
             dashboard.refresh_approvals()
             dashboard.refresh_submissions()
+            dashboard.refresh_livecheck()  # a manual submit creates a new "watching" row
         except Exception as e:
             log(f"mark-submitted failed: {e}")
             self._send_json(500, {"ok": False, "error": "could not mark submitted"})
@@ -200,6 +201,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             from backlink_agent import livecheck
             result = livecheck.check_one(name, url)
             dashboard.refresh_submissions()
+            dashboard.refresh_livecheck()
         except Exception as e:
             log(f"check-live failed: {e}")
             self._send_json(500, {"ok": False, "error": "check failed"})
@@ -255,6 +257,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         try:
             added = _add_runtime_exclusion(phrase)
+            # Rebuild proposals so the dismissed suggestion disappears NOW and stays
+            # gone on reload (the day's shortlist file still contains it).
+            dashboard.refresh_proposals()
         except Exception as e:
             log(f"dismiss failed: {e}")
             self._send_json(500, {"ok": False, "error": "could not dismiss"})
@@ -296,6 +301,9 @@ def run_propose_cycle() -> None:
         log(f"livecheck: {summary}")
         if summary.get("changed"):
             dashboard.refresh_submissions()
+        # Always refresh the Live Links data — last_checked/attempts move every sweep
+        # even when no status was written.
+        dashboard.refresh_livecheck()
     except Exception as e:
         log(f"livecheck failed: {e}")
     log("Propose cycle finished.")
