@@ -82,14 +82,21 @@ Each proposal on the **Output** tab has an **Approve** button. Clicking it queue
   `AUTO_SUBMIT_DRY_RUN`. A target only comes back **"needs manual submit"** when the form genuinely
   can't be completed — and the recorded note says exactly why (login needed, CAPTCHA unsolved,
   no form found, payment/phone wall, …) plus the Steel session id so you can watch the replay.
-- **Account-required sites (Product Hunt, Indie Hackers, …):** create the account once yourself, then
-  store the login in Steel's encrypted credential store: `python3 manage_credentials.py add
-  https://www.producthunt.com` (locally or `railway run …`). Steel auto-fills and submits the login
-  form server-side — the password never appears in the repo, Railway variables, logs, or screenshots.
-  After the first successful login the authenticated browser profile is reused automatically
-  (`data/steel_profiles.json`), so the site is logged into exactly once. For OAuth-only sites
-  ("Sign in with Google"), do the login by hand once in a Steel session via the live viewer URL —
-  the persisted profile covers every run after.
+- **Account-required sites (Product Hunt, Indie Hackers, …) — fully autonomous:** when the agent
+  hits a signup/login wall and has no stored login, it **creates its own account** — generates a
+  password, registers with your contact email, stores the login in Steel's encrypted Credentials API,
+  completes the "confirm your email" step, then submits. Passwords never appear in the repo, Railway
+  variables, logs, or screenshots; the authenticated browser profile is reused on later runs
+  (`data/steel_profiles.json`) and every created account is logged passwordlessly in
+  `data/accounts.json`. You can still pre-seed a login by hand with
+  `python3 manage_credentials.py add https://www.producthunt.com`.
+  - **One secret enables this: `IMAP_PASSWORD`** — a Gmail app password so the agent can read the
+    verification emails. Generate it at myaccount.google.com/apppasswords (needs 2-step verification
+    on the Google account), then set `IMAP_PASSWORD` in Railway. It is the single secret that makes
+    account creation hands-off, and it replaces per-site credentials rather than adding to them.
+  - Sites that only offer "Sign in with Google"/OAuth, or that need phone/SMS, can't be self-registered
+    — they fall back to a logged "manual" reason. For an OAuth-only site you can still log in by hand
+    once via the Steel live-viewer URL; the persisted profile covers every run after.
 - **Watch it happen:** the Approved tab shows **Submitting… → Submitted / Manual submit / Error** live,
   and each attempt appears on the **Sessions** tab; successful ones update the **Submissions** tab.
 
