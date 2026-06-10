@@ -88,6 +88,17 @@
 #proposals tbody tr:nth-child(even) td { background: #fcfbf7; }   /* subtle zebra */
 #proposals tbody tr:hover td { background: #f6f3ec; }
 
+/* Both proposal groups are separate <table>s; without a fixed grid each computes its
+   own column widths from content, so Curated and Discoveries misalign and look like
+   different formats. One shared fixed grid keeps every column at the same position. */
+#proposals table { table-layout: fixed; width: 100%; }
+#proposals th:nth-child(1) { width: 20%; }   /* Target */
+#proposals th:nth-child(2) { width: 64px; }  /* Score */
+#proposals th:nth-child(3) { width: 17%; }   /* Quality */
+#proposals th:nth-child(5) { width: 150px; } /* Action — Why it fits takes the rest */
+#proposals td.t-name { overflow-wrap: break-word; }
+#proposals td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* group subheaders ("Curated & approved", "New discoveries — review") */
 .group-label {
   font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
