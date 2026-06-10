@@ -11,8 +11,8 @@ One always-on process that does everything Railway needs:
        POST /api/approve  {name,url}  → queue a target (data/approvals.json) for submission
        POST /api/dismiss  {name,url}  → add a target to the runtime exclusion list
      Both are unauthenticated by design (public page); a click only writes to a queue/exclusion
-     file. The daily run decides whether to act and only auto-submits scripted sites after the
-     go-live date (see backlink_agent/orchestrator.process_approvals + AUTO_SUBMIT_* env vars).
+     file. Approval = authorization: with AUTO_SUBMIT_ENABLED the agent attempts every approved
+     target (see backlink_agent/submitter.dispatch + AUTO_SUBMIT_* env vars), so set APPROVE_TOKEN.
 
 Run data (data/) lives on a Railway volume mounted at /app/data so it survives redeploys.
 Submissions stay manual unless you opt into the auto phase (AUTO_SUBMIT_ENABLED).
@@ -138,7 +138,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def _token_ok(self) -> bool:
         """When APPROVE_TOKEN is set, require it (header X-Approve-Token or ?k=). When
         unset, allow (back-compat) but warn — a public page can't hold a true secret, so
-        this just blocks drive-by/bot hits; the allowlist + velocity cap bound the rest."""
+        this just blocks drive-by/bot hits; the velocity cap bounds the rest."""
         want = os.getenv("APPROVE_TOKEN", "").strip()
         if not want:
             log("WARNING: APPROVE_TOKEN not set — /api/approve is unauthenticated.")

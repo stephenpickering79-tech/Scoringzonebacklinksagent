@@ -15,12 +15,10 @@ Used by serve.py (immediate, on Approve) and orchestrator.process_approvals
 from __future__ import annotations
 
 import importlib
-import json
 import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))  # submit_*.py + steel_utils live at repo root
@@ -38,35 +36,6 @@ SCRIPTED_SITES = {
     "submit_eatsleepgolf": ("eat sleep golf", "eatsleepgolf"),
     "submit_tinylaunch": ("tinylaunch",),
 }
-
-# Domains the scripted sites cover — always auto-submit-allowed.
-_SCRIPTED_DOMAINS = {"eatsleepgolf.net", "tinylaunch.com"}
-_ALLOWLIST_FILE = BASE_DIR / "auto_submit_allowlist.json"
-
-
-def _domain(url: str) -> str:
-    try:
-        host = urlparse(url if "://" in url else f"https://{url}").netloc.lower()
-    except Exception:
-        host = ""
-    return host[4:] if host.startswith("www.") else host
-
-
-def _load_allowlist() -> set:
-    """Domains the agent may auto-submit to (scripted domains always included).
-    Read fresh each call so edits to auto_submit_allowlist.json take effect without restart."""
-    allow = set(_SCRIPTED_DOMAINS)
-    try:
-        if _ALLOWLIST_FILE.exists():
-            data = json.loads(_ALLOWLIST_FILE.read_text(encoding="utf-8"))
-            for d in (data.get("domains", []) if isinstance(data, dict) else data):
-                d = _domain(str(d)) or str(d).strip().lower()
-                if d:
-                    allow.add(d)
-    except Exception as e:
-        print(f"[submitter] could not read allowlist: {e}")
-    return allow
-
 
 def _scripted_module(name: str, url: str):
     hay = f"{name} {url}".lower()
@@ -103,16 +72,13 @@ def dispatch(name: str, url: str, dry_run: bool = False) -> tuple[str, str]:
     """Run the submission for one target. Returns (status, detail) where status is a
     valid approval status: submitted | needs_manual_submit | error | approved (dry).
 
-    Safety gate: only scripted sites or domains on the auto-submit allowlist are submitted
-    automatically; anything else is flagged needs_manual_submit (protects the domain from
-    low-quality/automated link-spam penalties)."""
+    Approval = authorization: the human clicking Approve on the dashboard IS the
+    review, so every approved target is attempted (scripted module if one exists,
+    generic submitter otherwise). Safety now rests on that human approval plus the
+    MAX_AUTOSUBMITS_PER_DAY velocity cap and the dry-run default. Targets only come
+    back needs_manual_submit when the form genuinely can't be completed, with the
+    specific reason recorded."""
     scripted = _scripted_module(name, url)
-    if not scripted:
-        dom = _domain(url)
-        if not dom or dom not in _load_allowlist():
-            return ("needs_manual_submit",
-                    "Not on auto-submit allowlist — review & submit manually "
-                    "(add the domain to auto_submit_allowlist.json to allow).")
     try:
         if scripted:
             if dry_run:
@@ -122,20 +88,21 @@ def dispatch(name: str, url: str, dry_run: bool = False) -> tuple[str, str]:
             label = scripted
         else:
             if not url:
-                return "needs_manual_submit", "No URL to submit to."
+                return "needs_manual_submit", "No submission URL — outreach-only target, handle manually."
             mod = importlib.import_module("submit_generic")
             raw = mod.submit(name, url, dry_run=dry_run)
             label = "generic submitter"
     except Exception as e:
         return "error", f"{type(e).__name__}: {e}"[:200]
 
-    # Submitted path returns a dict with on-page confirmation evidence; other
-    # outcomes ("aborted"/"dry") remain plain strings.
-    confirmation, evidence = "", ""
+    # Submitted/aborted paths return dicts (confirmation evidence / abort reason);
+    # "dry" — and "aborted" from the older scripted modules — remain plain strings.
+    confirmation, evidence, reason = "", "", ""
     if isinstance(raw, dict):
         outcome = raw.get("outcome", "")
         confirmation = raw.get("confirmation", "")
         evidence = raw.get("evidence", "")
+        reason = raw.get("reason", "")
     else:
         outcome = raw
 
@@ -150,6 +117,8 @@ def dispatch(name: str, url: str, dry_run: bool = False) -> tuple[str, str]:
     if outcome == "dry":
         return "approved", "dry run — filled the form, did not submit."
     # aborted / anything else → couldn't complete automatically.
+    if reason:
+        return "needs_manual_submit", f"{label}: {reason}"[:300]
     return "needs_manual_submit", f"{label} could not complete this form — submit manually."
 
 
