@@ -18,7 +18,9 @@ linking to scoringzone.net/.app:
   - Blocked / rejected / not-yet-submitted rows are never tracked.
 
 Fetching is requests-first (free); a Steel cheap_scrape fallback handles JS-shell
-pages and bot walls, capped at LIVECHECK_MAX_STEEL_PER_RUN per run.
+pages, and a full Steel browser session (stealth + CAPTCHA solving) is the last
+resort for hard bot walls that block cheap_scrape too (e.g. Crunchbase's
+Cloudflare). Both fallbacks draw from the LIVECHECK_MAX_STEEL_PER_RUN budget.
 
 IMPORTANT precedence note: dashboard._merge_submission_log overlays the submission
 log over the markdown UNCONDITIONALLY, so a bad write here could mask a human
@@ -184,6 +186,64 @@ def _needs_steel(status: int | None, html: str) -> bool:
     return "<a" not in html.lower() or len(html) < 2048
 
 
+# Bot-wall block pages (Cloudflare and friends). cheap_scrape has no real browser,
+# so hard-walled sites (e.g. Crunchbase) serve it these instead of the listing.
+_BLOCK_PAGE_BITS = ("attention required!", "just a moment", "access denied",
+                    "verify you are human", "are you a robot", "cf-chl",
+                    "challenge-platform", "enable javascript and cookies")
+
+
+def _looks_blocked(html: str) -> bool:
+    low = (html or "").lower()
+    if not low or len(low) < 1024:
+        return True
+    return any(b in low for b in _BLOCK_PAGE_BITS)
+
+
+def _browser_fetch(url: str) -> str:
+    """Last-resort fetch with a full Steel browser session (stealth + CAPTCHA
+    solving + proxy) — the same stack the submitters use, which gets past walls
+    that block both plain requests and cheap_scrape. Returns "" on failure."""
+    try:
+        from steel_utils import steel_page, wait_for_captchas
+        with steel_page(solve_captcha=True, api_timeout_ms=120_000) as (pw, browser, page, client, sid):
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            wait_for_captchas(client, sid)
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+            return page.content() or ""
+    except Exception as e:
+        print(f"[livecheck] browser fetch failed for {url}: {type(e).__name__}: {e}")
+        return ""
+
+
+def _search_index_verify(url: str) -> bool:
+    """Verify a bot-walled listing via the Google index (Serper): true when the
+    exact listing URL ranks for site:<domain> "scoring zone". Some sites (e.g.
+    Crunchbase) hard-block every direct fetch — but Googlebot gets in, so the
+    page being indexed under the product name is solid evidence it's live.
+    Only called for listing-style URLs (path names the product)."""
+    if not os.getenv("SERPER_API_KEY", "").strip():
+        return False
+    try:
+        try:
+            from .research import serper_search
+        except ImportError:  # direct/script context
+            from research import serper_search  # type: ignore
+        host = (urlparse(url).netloc or "").replace("www.", "")
+        if not host:
+            return False
+        want = url.rstrip("/").lower()
+        for r in serper_search(f'site:{host} "scoring zone"'):
+            if (r.get("link") or "").rstrip("/").lower() == want:
+                return True
+    except Exception as e:
+        print(f"[livecheck] search-index verify failed for {url}: {e}")
+    return False
+
+
 def find_backlink(html: str) -> tuple[str | None, bool | None]:
     """First anchor href pointing at scoringzone.net/.app → (href, dofollow)."""
     m = _LINK_TAG_RE.search(html or "")
@@ -246,7 +306,10 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
     found_url: str | None = None
     dofollow: bool | None = None  # None = listing live but link goes via a redirect
     method = "none"
-    for cand in candidate_urls(url, st):
+    blocked_fetches = 0
+    clean_fetches = 0
+    cands = candidate_urls(url, st)
+    for cand in cands:
         status_code, html = fetch_html(cand)
         method = "requests"
         if _needs_steel(status_code, html):
@@ -260,6 +323,19 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
                     method = "steel"
                 except Exception as e:
                     print(f"[livecheck] cheap_scrape failed for {cand}: {e}")
+                # Hard bot wall (Cloudflare et al.) blocks cheap_scrape too —
+                # escalate to a full browser session if the budget allows.
+                if _looks_blocked(html) and (steel_budget is None or steel_budget[0] > 0):
+                    if steel_budget is not None:
+                        steel_budget[0] -= 1
+                    fetched = _browser_fetch(cand)
+                    if fetched:
+                        html = fetched
+                        method = "steel-browser"
+        if _looks_blocked(html):
+            blocked_fetches += 1
+        else:
+            clean_fetches += 1
         href, rel_ok = find_backlink(html)
         if href:
             found_url, dofollow = cand, rel_ok
@@ -267,6 +343,15 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
         if listing_is_live(cand, html):
             found_url, dofollow = cand, None
             break
+
+    # Every fetch bot-walled → the page can't be read directly. For listing-style
+    # URLs, fall back to the Google index (Googlebot gets in even when we can't).
+    all_blocked = bool(cands) and blocked_fetches > 0 and clean_fetches == 0
+    if not found_url and all_blocked:
+        for cand in cands:
+            if _looks_like_listing_url(cand) and _search_index_verify(cand):
+                found_url, dofollow, method = cand, None, "search-index"
+                break
 
     st["attempts"] = st.get("attempts", 0) + 1
     st["last_checked"] = _now()
@@ -276,7 +361,11 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
               "status_written": "", "detail": ""}
 
     current = row_status or _current_row_status(name, url)
-    if dofollow is None:
+    if method == "search-index":
+        rel_word = "indexed"
+        found_note = (f"Listing live at {found_url} — verified via the Google index "
+                      "(page bot-walled to direct fetches; link rel unknown).")
+    elif dofollow is None:
         rel_word = "redirect"
         found_note = f"Listing live at {found_url} (links via redirect — no direct dofollow link)."
     else:
@@ -301,7 +390,15 @@ def check_target(name: str, url: str, state: dict, *, row_status: str = "",
                     send_alert(f"Backlink LIVE: {name} — {found_url} ({rel_word})")
         return result
 
-    # Not found.
+    # Not found — but if every fetch was bot-walled (and the index couldn't confirm
+    # either), that is absence of EVIDENCE, not absence of the link. Never count it
+    # as a miss or write a downgrade; keep whatever status the row already has.
+    if all_blocked:
+        st["last_blocked"] = _now()
+        result["detail"] = ("unverifiable — bot wall blocked every fetch; "
+                            "status left unchanged")
+        return result
+
     if st.get("status") == "live":
         st["consecutive_misses"] = st.get("consecutive_misses", 0) + 1
         if st["consecutive_misses"] >= LOST_MISS_THRESHOLD:
@@ -423,7 +520,8 @@ def run_daily_checks() -> dict:
 def check_one(name: str, url: str) -> dict:
     """Forced single check for the dashboard 'Check now' button."""
     state = load_state()
-    result = check_target(name, url, state, force=True, steel_budget=[1])
+    # Budget 2: one cheap_scrape + one full-browser escalation for hard bot walls.
+    result = check_target(name, url, state, force=True, steel_budget=[2])
     save_state(state)
     return result
 
