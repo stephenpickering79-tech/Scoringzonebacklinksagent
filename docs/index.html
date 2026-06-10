@@ -4,8 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Scoring Zone · Backlink Dashboard</title>
-<link rel="stylesheet" href="tokens.css?v=10" />
-<link rel="stylesheet" href="styles.css?v=10" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%23d97757'/%3E%3Ctext x='32' y='43' font-family='Georgia,serif' font-weight='600' font-size='30' fill='%23ffffff' text-anchor='middle'%3ESZ%3C/text%3E%3C/svg%3E" />
+<meta name="theme-color" content="#faf9f5" />
+<link rel="stylesheet" href="tokens.css?v=11" />
+<link rel="stylesheet" href="styles.css?v=11" />
 </head>
 <body>
   <div class="shell">
@@ -19,6 +21,7 @@
       </div>
       <nav class="nav" id="nav">
         <button class="nav-item active" data-view="output"><span class="ic">◷</span> Output</button>
+        <button class="nav-item" data-view="livelinks"><span class="ic">⛳</span> Live Links</button>
         <button class="nav-item" data-view="approved"><span class="ic">✓</span> Approved</button>
         <button class="nav-item" data-view="sessions"><span class="ic">⦿</span> Sessions</button>
         <button class="nav-item" data-view="submissions"><span class="ic">▤</span> Submissions</button>
@@ -51,6 +54,22 @@
         </div>
       </section>
 
+      <section class="view hidden" id="view-livelinks">
+        <div class="ll-summary" id="llSummary"></div>
+        <div class="panel panel-live">
+          <div class="panel-head"><h2>Live backlinks</h2><span class="panel-meta" id="llLiveMeta"></span></div>
+          <div class="panel-body" id="llLive"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Watching — awaiting link</h2><span class="panel-meta" id="llWatchMeta"></span></div>
+          <div class="panel-body" id="llWatching"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Needs attention</h2><span class="panel-meta" id="llAttnMeta"></span></div>
+          <div class="panel-body" id="llAttention"></div>
+        </div>
+      </section>
+
       <section class="view hidden" id="view-approved">
         <div class="panel">
           <div class="panel-head"><h2>Approved — to submit</h2><span class="panel-meta" id="approvedMeta"></span></div>
@@ -74,7 +93,7 @@
     </main>
   </div>
 
-  <script src="shared.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="shared.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

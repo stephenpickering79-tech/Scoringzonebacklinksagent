@@ -158,15 +158,44 @@ th.sortable[aria-sort] .arrow { opacity: 1; color: var(--accent-ink); }
 
 /* empty state ------------------------------------------------------------ */
 .empty {
-  padding: 28px;
+  padding: 40px 28px;
   text-align: center;
   color: var(--faint);
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: .04em;
 }
+.empty .empty-ic { display: block; font-size: 26px; color: var(--faint); margin-bottom: 10px; }
+.empty .empty-title { font-family: var(--font-body); font-size: 14.5px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.empty .empty-hint { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .03em; color: var(--faint); margin-top: 5px; }
+
+/* keyboard focus — visible rings for tab navigation ----------------------- */
+:is(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+th.sortable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* toasts — action feedback (bottom-right, auto-dismiss) ------------------- */
+#toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.toast {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .02em;
+  padding: 10px 14px; border-radius: var(--r-sm); border: 1px solid; box-shadow: var(--shadow-lift);
+  max-width: 340px; animation: toast-in .25s ease; transition: opacity .3s ease, transform .3s ease;
+}
+.toast.success { color: var(--live); background: var(--live-bg); border-color: #cfe0d2; }
+.toast.error   { color: var(--blocked); background: var(--blocked-bg); border-color: #ecccc5; }
+.toast.out { opacity: 0; transform: translateY(6px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* row exit (dismissed suggestion) ----------------------------------------- */
+@keyframes row-fade { to { opacity: 0; } }
+tr.row-out td { animation: row-fade .25s ease forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   .spark .line { animation: none; stroke-dashoffset: 0; }
   .reveal { animation: none; }
+  .toast { animation: none; }
+  tr.row-out td { animation-duration: .01s; }
 }

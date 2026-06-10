@@ -130,8 +130,17 @@
   transition: filter .12s ease, opacity .12s ease;
 }
 .approve-btn:hover { filter: brightness(1.05); }
-.approve-btn:disabled { opacity: .6; cursor: default; }
+.approve-btn:disabled { opacity: .5; cursor: not-allowed; filter: saturate(.4); }
 .approve-btn.approve-err { background: var(--blocked-bg); color: var(--blocked); border-color: var(--blocked); }
+
+/* Dismiss ✕ (discoveries only) — quiet until hovered, destructive on hover */
+.dismiss-btn {
+  font-size: 13px; line-height: 1; color: var(--faint); background: transparent;
+  border: 1px solid transparent; border-radius: 7px; padding: 5px 8px; cursor: pointer;
+  margin-left: 6px; transition: color .12s ease, background .12s ease;
+}
+.dismiss-btn:hover { color: var(--blocked); background: var(--blocked-bg); border-color: #ecccc5; }
+.dismiss-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Secondary action: "Mark submitted" on the Approved tab (outline style) */
 .mark-btn {
@@ -141,12 +150,31 @@
   transition: background .12s ease, border-color .12s ease;
 }
 .mark-btn:hover { background: var(--accent-soft); border-color: #eccdbf; }
-.mark-btn:disabled { opacity: .6; cursor: default; }
+.mark-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Live Links — summary strip + the "wins" panel --------------------------- */
+.ll-summary { display: flex; gap: 14px; flex-wrap: wrap; }
+.ll-stat {
+  display: flex; align-items: baseline; gap: 9px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: var(--r); padding: 12px 18px;
+  box-shadow: var(--shadow-soft);
+}
+.ll-stat .n { font-family: var(--font-mono); font-size: 24px; line-height: 1; }
+.ll-stat .l { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.ll-stat.live .n { color: var(--live); }
+.ll-stat.watching .n { color: var(--pending); }
+.ll-stat.attention .n { color: var(--blocked); }
+
+.panel-live { border-color: #cfe0d2; }
+.panel-live .panel-head { background: linear-gradient(180deg, #fff, var(--live-bg)); border-bottom-color: #cfe0d2; }
+.panel-live .panel-head h2::before { content: "●"; color: var(--live); font-size: 10px; margin-right: 8px; vertical-align: 2px; }
+.due-now { font-family: var(--font-mono); font-size: 12px; color: var(--accent-ink); font-weight: 600; }
+.waiting { color: var(--faint); font-family: var(--font-mono); font-size: 11px; }
 
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 14px; }
   .nav { flex-direction: row; flex-wrap: wrap; }
   .side-foot { margin: 0; }
-  .cell-notes, .cell-why { display: none; }
+  .cell-notes, .cell-why, .cell-found, .cell-attempts { display: none; }
 }

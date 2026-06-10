@@ -1,0 +1,159 @@
+{
+  "generated_at": "2026-06-10T09:34:00",
+  "summary": {
+    "live": 8,
+    "watching": 5,
+    "attention": 0
+  },
+  "live": [
+    {
+      "name": "BetaList",
+      "listing_url": "https://betalist.com/startups/scoring-zone",
+      "rel": "redirect",
+      "found_at": "2026-06-10T09:33:47",
+      "last_checked": "2026-06-10T09:33:47",
+      "next_check_due": "2026-06-17",
+      "status_label": "Live ✓ (auto-verified 2026-06-10)",
+      "tracked": true,
+      "dr": 75,
+      "date": "2026-06-10"
+    },
+    {
+      "name": "Crunchbase",
+      "listing_url": "https://www.crunchbase.com/organization/scoring-zone",
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓ (confirmed 2026-04-19)",
+      "tracked": false,
+      "dr": 91,
+      "date": "2026-04-07"
+    },
+    {
+      "name": "SaaSHub",
+      "listing_url": null,
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓ (2026-04-16)",
+      "tracked": false,
+      "dr": 68,
+      "date": "2026-04-08"
+    },
+    {
+      "name": "Turbo0",
+      "listing_url": null,
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓",
+      "tracked": false,
+      "dr": 78,
+      "date": "2026-04-14"
+    },
+    {
+      "name": "PeerPush",
+      "listing_url": null,
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓",
+      "tracked": false,
+      "dr": 73,
+      "date": "2026-04-14"
+    },
+    {
+      "name": "SaasHunt",
+      "listing_url": "https://saashunt.best/projects/scoring-zone",
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓ (#1 Project of the Day 2026-04-19)",
+      "tracked": false,
+      "dr": 49,
+      "date": "2026-04-14"
+    },
+    {
+      "name": "Toolfio",
+      "listing_url": null,
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓",
+      "tracked": false,
+      "dr": 50,
+      "date": "2026-04-14"
+    },
+    {
+      "name": "Medium (self-published)",
+      "listing_url": null,
+      "rel": "unknown",
+      "found_at": null,
+      "last_checked": null,
+      "next_check_due": null,
+      "status_label": "Live ✓",
+      "tracked": false,
+      "dr": 96,
+      "date": "2026-04-19"
+    }
+  ],
+  "watching": [
+    {
+      "name": "Product Hunt",
+      "url": null,
+      "status_label": "Submitted",
+      "submitted_date": "2026-04-08",
+      "last_checked": null,
+      "attempts": 0,
+      "next_check_due": "2026-06-10",
+      "days_waiting": 63
+    },
+    {
+      "name": "AppSumo",
+      "url": null,
+      "status_label": "Applied",
+      "submitted_date": "2026-04-09",
+      "last_checked": null,
+      "attempts": 0,
+      "next_check_due": "2026-06-10",
+      "days_waiting": 62
+    },
+    {
+      "name": "Bright Data",
+      "url": null,
+      "status_label": "Submitted",
+      "submitted_date": "2026-04-10",
+      "last_checked": null,
+      "attempts": 0,
+      "next_check_due": "2026-06-10",
+      "days_waiting": 61
+    },
+    {
+      "name": "Tiny Startups",
+      "url": null,
+      "status_label": "Submitted",
+      "submitted_date": "2026-04-14",
+      "last_checked": null,
+      "attempts": 0,
+      "next_check_due": "2026-06-10",
+      "days_waiting": 57
+    },
+    {
+      "name": "F6S",
+      "url": "https://www.f6s.com/scoring-zone",
+      "status_label": "Submitted",
+      "submitted_date": "2026-05-04",
+      "last_checked": null,
+      "attempts": 0,
+      "next_check_due": "2026-06-10",
+      "days_waiting": 37
+    }
+  ],
+  "attention": []
+}
