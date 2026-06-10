@@ -29,8 +29,10 @@ from __future__ import annotations
 import re
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+import email_inbox
 import site_credentials
 from steel_utils import (record_session, record_submission, steel_page, wait_for_captchas,
                          detect_submission_confirmation, send_alert, last_session_info)
@@ -79,11 +81,33 @@ _LOGIN_LINK_SELECTORS = [
     'a[href*="login" i]', 'a[href*="signin" i]', 'a[href*="sign-in" i]',
     'a:has-text("Log in")', 'a:has-text("Login")', 'a:has-text("Sign in")',
 ]
+_SIGNUP_LINK_SELECTORS = [
+    'a[href*="signup" i]', 'a[href*="sign-up" i]', 'a[href*="register" i]',
+    'a[href*="join" i]', 'a:has-text("Sign up")', 'a:has-text("Sign Up")',
+    'a:has-text("Register")', 'a:has-text("Create account")', 'a:has-text("Get started")',
+    'a:has-text("Join")',
+]
 _LOGIN_TEXT_PATTERNS = ("sign in to", "log in to", "must be logged in", "members only")
 _SIGNUP_TEXT_PATTERNS = ("create an account to", "sign up to", "register to", "join to submit")
 _LOGIN_URL_RE = re.compile(r"/(login|signin|sign-in|signup|sign-up|register)\b", re.I)
 _LOGIN_FAIL_PATTERNS = ("incorrect password", "invalid login", "invalid email or password",
                         "wrong password", "try again")
+# OAuth-only gates we cannot self-register through (no email/password form).
+_OAUTH_ONLY_RE = re.compile(r"(sign|log)\s*(in|up)\s*with\s*(google|github|apple|facebook|x|twitter|linkedin)",
+                            re.IGNORECASE)
+_SIGNUP_SUBMIT_SELECTORS = [
+    'button:has-text("Sign up")', 'button:has-text("Sign Up")', 'button:has-text("Create account")',
+    'button:has-text("Create Account")', 'button:has-text("Register")', 'button:has-text("Join")',
+    'button:has-text("Get started")', 'button:has-text("Continue")', 'button[type="submit"]',
+    'input[type="submit"]', 'form button',
+]
+_PASSWORD_SELECTORS = ('input[type="password"]:not([name*="confirm" i]):not([id*="confirm" i])'
+                       ':not([placeholder*="confirm" i]):not([name*="repeat" i])')
+_CONFIRM_PW_SELECTORS = ('input[type="password"][name*="confirm" i], input[type="password"][id*="confirm" i], '
+                         'input[type="password"][placeholder*="confirm" i], input[type="password"][name*="repeat" i]')
+_FULLNAME_SELECTORS = ('input[name*="name" i]:not([name*="company" i]):not([name*="user" i]), '
+                       'input[id*="fullname" i], input[placeholder*="full name" i], '
+                       'input[placeholder*="your name" i], input[autocomplete="name"]')
 
 
 def _slug(text: str) -> str:
@@ -276,6 +300,153 @@ def _attempt_login(page, client, sid: str, slug: str, screenshots: list) -> bool
     return False
 
 
+def _open_signup(page) -> bool:
+    """Navigate to a signup form if we're not already on one. Returns True if a
+    password field is present afterwards (i.e. a self-serve email/password signup)."""
+    if page.query_selector('input[type="password"]'):
+        return True
+    for sel in _SIGNUP_LINK_SELECTORS:
+        try:
+            link = page.query_selector(sel)
+            if link and link.is_visible():
+                print(f"Opening signup via: {sel}")
+                link.click()
+                page.wait_for_load_state("domcontentloaded", timeout=15000)
+                time.sleep(2)
+                break
+        except Exception:
+            continue
+    return bool(page.query_selector('input[type="password"]'))
+
+
+def _auto_register(page, url: str, domain: str, client, sid: str, slug: str,
+                   screenshots: list) -> bool:
+    """Autonomously create an account: generate a password, fill + submit the signup
+    form, store the login in Steel, complete any email verification, and end logged in.
+    Returns True on success. Account password is only ever held by Steel."""
+    # OAuth-only walls (no email/password form) can't be self-registered.
+    try:
+        body = (page.inner_text("body")[:3000] or "")
+        if _OAUTH_ONLY_RE.search(body) and not page.query_selector('input[type="password"]') \
+                and not _open_signup(page):
+            print("Signup is OAuth-only — cannot self-register.")
+            return False
+    except Exception:
+        pass
+
+    if not _open_signup(page):
+        print("No email/password signup form found.")
+        return False
+
+    password = site_credentials.generate_password()
+    signup_started = datetime.now(timezone.utc)
+
+    def fill(sel, val):
+        try:
+            page.fill(sel, val, timeout=4000)
+            return True
+        except Exception:
+            return False
+
+    fill(_EMAIL_SELECTORS, CONTACT_EMAIL)
+    fill(_FULLNAME_SELECTORS, CONTACT_NAME)
+    fill('input[name*="user" i]:not([type="email"]), input[id*="username" i]',
+         "scoringzone")
+    fill(_PASSWORD_SELECTORS, password)
+    fill(_CONFIRM_PW_SELECTORS, password)
+    # Accept terms / newsletter checkboxes — required to submit on many signups.
+    try:
+        for box in page.query_selector_all('input[type="checkbox"]'):
+            try:
+                nm = ((box.get_attribute("name") or "") + (box.get_attribute("id") or "")).lower()
+                if any(k in nm for k in ("term", "agree", "privacy", "accept", "tos")) and not box.is_checked():
+                    box.check(timeout=2000)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    try:
+        page.screenshot(path=f"generic_{slug}_signup.png", full_page=True)
+        screenshots.append(f"generic_{slug}_signup.png")
+    except Exception:
+        pass
+
+    clicked = False
+    for sel in _SIGNUP_SUBMIT_SELECTORS:
+        try:
+            btn = page.query_selector(sel)
+            if btn and btn.is_visible():
+                print(f"Submitting signup: {sel}")
+                btn.click()
+                clicked = True
+                break
+        except Exception:
+            continue
+    if not clicked:
+        print("No signup submit button found.")
+        return False
+
+    wait_for_captchas(client, sid)
+    time.sleep(4)
+    try:
+        page.wait_for_load_state("networkidle", timeout=15000)
+    except Exception:
+        pass
+
+    # Store the login in Steel immediately — even if verification is still pending,
+    # the credential is now reusable and Steel can auto-inject it on future logins.
+    site_credentials.store_credential(url, CONTACT_EMAIL, password, client=client)
+    site_credentials.record_account(url, CONTACT_EMAIL, verified=False)
+
+    # Email verification, if the inbox secret is configured. Sites use either a
+    # click-link or a numeric code typed back into the page — handle both.
+    if email_inbox.is_configured():
+        found = email_inbox.find_verification(url, since=signup_started, timeout_sec=180)
+        link, code = found.get("link"), found.get("code")
+        code_field = page.query_selector(
+            'input[name*="code" i], input[id*="code" i], input[name*="otp" i], '
+            'input[autocomplete="one-time-code"], input[placeholder*="code" i]')
+        if code and code_field:
+            try:
+                print("Entering verification code from email.")
+                code_field.fill(code, timeout=4000)
+                for sel in ("button:has-text('Verify')", "button:has-text('Confirm')",
+                            "button:has-text('Submit')", 'button[type="submit"]', "form button"):
+                    btn = page.query_selector(sel)
+                    if btn and btn.is_visible():
+                        btn.click()
+                        break
+                wait_for_captchas(client, sid)
+                time.sleep(3)
+                site_credentials.mark_verified(url)
+            except Exception as e:
+                print(f"Could not enter verification code: {e}")
+        elif link:
+            try:
+                print("Visiting verification link.")
+                page.goto(link, wait_until="domcontentloaded", timeout=45000)
+                wait_for_captchas(client, sid)
+                time.sleep(3)
+                site_credentials.mark_verified(url)
+            except Exception as e:
+                print(f"Could not open verification link: {e}")
+        else:
+            print("[auto_register] no verification link/code arrived in time.")
+    else:
+        print("[auto_register] IMAP_PASSWORD not set — skipping email verification step.")
+
+    # Back to the site; consider it done if we're no longer behind an auth wall.
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        _wait_for_form(page)
+    except Exception:
+        pass
+    ok = _looks_logged_in(page)
+    print(f"Auto-register {'succeeded' if ok else 'incomplete (may need email verification)'}.")
+    return ok
+
+
 def submit(name: str, url: str, *, dry_run: bool = False):
     """Best-effort submit `name` (Scoring Zone) to the directory at `url`.
 
@@ -301,6 +472,9 @@ def submit(name: str, url: str, *, dry_run: bool = False):
         session_opts["credentials"] = {}
         session_opts["persist_profile"] = True
         print(f"Steel credential injection enabled for {domain}")
+    else:
+        # No login yet — persist the profile so an auto-created account stays logged in.
+        session_opts["persist_profile"] = True
 
     with steel_page(solve_captcha=True, api_timeout_ms=300_000, **session_opts) as (pw, browser, page, client, sid):
         screenshots: list[str] = []
@@ -320,18 +494,23 @@ def submit(name: str, url: str, *, dry_run: bool = False):
         except Exception:
             pass
 
-        # Account wall? Log in via Steel's injection if a credential is stored.
+        # Account wall? Log in with a stored credential, or autonomously create an
+        # account (generate password → register → store in Steel → verify email).
         wall = _detect_auth_wall(page)
         logged_in = False
         if wall and has_creds:
             logged_in = _attempt_login(page, client, sid, slug, screenshots)
+        elif wall and not dry_run:
+            logged_in = _auto_register(page, url, domain, client, sid, slug, screenshots)
             if logged_in:
-                new_profile = last_session_info().get("profile_id")
-                if new_profile and not profile_id:
-                    site_credentials.save_profile_id(domain, new_profile)
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                form_found = _wait_for_form(page)
-                wait_for_captchas(client, sid)
+                has_creds = True  # account now exists for the abort-reason logic below
+        if logged_in:
+            new_profile = last_session_info().get("profile_id")
+            if new_profile and not profile_id:
+                site_credentials.save_profile_id(domain, new_profile)
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            form_found = _wait_for_form(page)
+            wait_for_captchas(client, sid)
 
         target = _form_target(page)
         filled, last_filled = _fill_form(target, url)
@@ -348,12 +527,17 @@ def submit(name: str, url: str, *, dry_run: bool = False):
         if core_ok == 0:
             # Be honest about why we bowed out (rather than posting partial data).
             wall = wall or _detect_auth_wall(page)
-            if wall and has_creds and not logged_in:
+            if wall and dry_run:
+                reason = f"account required for {domain} — would auto-create an account on a live (non-dry) run"
+            elif wall and not logged_in and not has_creds:
+                reason = (f"account required for {domain} — could not self-register "
+                          "(OAuth-only signup, or signup form not automatable / email "
+                          "verification didn't arrive); handle manually")
+            elif wall and not logged_in:
                 reason = f"login failed for {domain} with stored credentials — check Steel credentials / replay"
-            elif wall == "signup":
-                reason = f"account/signup required — no credentials stored for {domain} (create the account once, then manage_credentials.py add)"
             elif wall:
-                reason = f"account required — no credentials stored for {domain} (add via manage_credentials.py)"
+                reason = (f"created/logged into an account for {domain} but the submission form "
+                          "still didn't load — may need email verification or manual review")
             elif not form_found:
                 reason = "no form fields found (page may be JS-rendered or not a submission page)"
             else:
