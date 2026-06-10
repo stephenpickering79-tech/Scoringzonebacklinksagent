@@ -69,6 +69,10 @@ RUNTIME_EXCLUDED_FILE = DATA_DIR / "excluded.json"
 COMPETITORS_FILE = BASE_DIR / "competitors.json"
 COMPETITOR_CANDIDATES_FILE = BASE_DIR / "competitor_backlink_candidates.json"
 COMPETITOR_FILE_STALE_DAYS = 45
+# CURRENT PHASE: only categories the agent can submit to itself (no human outreach).
+# roundup/blog/news/other entries stay in the harvest file as the seed list for the
+# future email-outreach phase (see TODO.md) but are not fed to the pipeline.
+SUBMITTABLE_CATEGORIES = ("directory", "review_site", "resource_page", "tool")
 
 # A target is "done/closed" (skip) if its status contains any of these. Everything else
 # (not submitted, prepared, ready, in progress, pending, applied, submitted, blank) is "open".
@@ -381,7 +385,6 @@ SEARCH_QUERY_POOL = [
     "golf technology directory submit your product",
     "sports tech startup directory submit your startup",
     "fitness app directory submit your app",
-    "golf blog \"write for us\" resources",
     "golf coach resources \"list your\" tool",
     "sports app directory add your listing",
     # --- Golf/sports niche, local, association & editorial (highest-value, lowest-risk) ---
@@ -390,10 +393,8 @@ SEARCH_QUERY_POOL = [
     "golf coaching directory add your business",
     "golf technology companies directory",
     "golf startup directory list your company",
-    "golf blog \"guest post\" OR \"write for us\"",
     "sports technology directory submit your company",
     "golf association member directory apply",
-    "best putting apps OR best short game apps roundup",
     "\"add your golf business\" directory",
     # --- Quality general / maker / SaaS directories (volume filler, kept lower-weight) ---
     "submit your SaaS directory dofollow",
@@ -403,29 +404,19 @@ SEARCH_QUERY_POOL = [
     "startup directory \"add your startup\" free dofollow",
     "app of the day directory submit",
     "indie hackers tool directory submit",
-    # --- Resource/links pages & roundups (no "submit" language, LLM judges relevance) ---
-    "golf coaching \"useful links\" OR \"recommended apps\"",
-    "golf club website links page apps",
-    "golf instruction \"resources\" page apps tools",
-    "\"golf apps\" roundup 2026",
-    "golf practice tools resource list",
-    "golf stat tracking apps comparison",
+    # --- Directory-intent (self-serve submission pages) ---
+    "golf directory \"add your website\"",
+    "sports directory submit site free",
+    "golf links directory submit",
+    "app directory \"submit your app\" sports",
+    "niche directory \"list your business\" golf",
+    "free web directory submit sports fitness",
 ]
+# NOTE: competitor-derived queries ("{Name} alternatives", "{Name} review") were removed —
+# they return articles/roundups, which are outreach-phase targets (see TODO.md). Competitor
+# value flows through competitor_backlink_candidates.json instead.
 
-
-def _competitor_queries() -> list[str]:
-    """Queries derived from competitors.json — roundups/reviews/alternatives pages that cover a
-    competitor app usually accept or mention comparable apps, which makes them link prospects."""
-    out: list[str] = []
-    for c in load_competitors():
-        n = c.get("name") or c.get("domain")
-        out += [f"{n} alternatives", f"{n} review golf app", f"apps like {n}"]
-    return out
-
-
-SEARCH_QUERY_POOL = SEARCH_QUERY_POOL + _competitor_queries()
-
-# How many of the pool to run per day. The window rotates by date so coverage spreads over ~5 days.
+# How many of the pool to run per day. The window rotates by date so coverage spreads over ~3 days.
 QUERIES_PER_RUN = 12
 
 
@@ -438,14 +429,21 @@ def _todays_queries() -> list[str]:
     start = (date.today().toordinal() * QUERIES_PER_RUN) % len(pool)
     return [pool[(start + i) % len(pool)] for i in range(QUERIES_PER_RUN)]
 
-# Search filtering philosophy: heuristics only remove hard JUNK (stores, social, docs, builders);
-# they no longer require "submit/directory" language, because that gate dropped good roundups,
-# review sites, and resource pages (the 2026-06-07 run found 0 candidates). Borderline results
-# flow through to the LLM scorer, and orchestrator's DISCOVERY_MIN_SCORE hides the low scorers.
-# Hosts that are never a submission target (encyclopedias, stores, social, listicle media).
+# Search filtering philosophy (CURRENT PHASE): only self-serve submission targets are wanted —
+# directories and listing pages the agent can submit to without human outreach. A result must
+# carry a submission/directory signal in its TITLE or URL. Articles, roundups, reviews and
+# newsletters are outreach-phase targets (see TODO.md) and are filtered out here.
+_SEARCH_HINTS = (
+    "submit", "directory", "directories", "list your", "add your", "get listed",
+    "add a site", "add url", "add listing", "register your", "listing",
+    "places to submit", "where to submit",
+)
+# Hosts that are never a submission target (encyclopedias, stores, social, listicle media,
+# newsletter platforms).
 _EXCLUDE_HOSTS = (
     "wikipedia.org", "youtube.com", "amazon.", "apple.com", "play.google.com", "quora.com",
     "medium.com", "linkedin.com", "facebook.com", "instagram.com", "tiktok.com",
+    "substack.com", "beehiiv.com", "ghost.io", "mailchi.mp",
 )
 # Host prefixes / URL fragments that signal docs/support/editorial, not a submission page.
 _BAD_HOST_PREFIX = ("docs.", "support.", "developers.", "help.", "dev.")
@@ -453,13 +451,14 @@ _BAD_PATH = ("/articles/", "/newsletter", "/showcase", "/help", "/support", "tax
              "/on-nbc", "/faq", "/company/")
 
 
-# Noise that LOOKS like a relevant result but isn't a link prospect: directory *builders*,
-# how-to/tutorial articles, templates. Matched in title or URL. Deliberately does NOT match
-# /blog/ or /guide/ paths — roundups and reviews often live there and the LLM judges those.
+# Noise that LOOKS like a relevant result but isn't a submission target: directory *builders*,
+# how-to/tutorial articles, templates, and editorial blog/guide/news content. Matched in title
+# or URL.
 _SEARCH_NOISE = (
     "how to", "how-to", "website builder", "directory builder", " builder", "app template",
     "template", "wordpress", "/tutorial", " module", "create a ", "build a ",
-    "lessons from", "mistakes", "ultimate guide",
+    "lessons from", "mistakes", "ultimate guide", "best ways",
+    "/blog/", "/guides/", "/guide/", "/post/", "/news/", "newsletter", "why ",
 )
 
 
@@ -496,13 +495,21 @@ def _search_result_is_opportunity(title: str, snippet: str, link: str) -> bool:
     low = link.lower()
     if low.endswith(".pdf") or any(b in low for b in _BAD_PATH):
         return False
-    # Drop builder/how-to/template noise; everything else goes to the LLM for relevance scoring.
+    # Drop builder/how-to/template/editorial noise.
     hay = f"{title} {link}".lower()
-    return not any(n in hay for n in _SEARCH_NOISE)
+    if any(n in hay for n in _SEARCH_NOISE):
+        return False
+    # Require a submission/directory signal in the TITLE or URL — current phase is self-serve
+    # submission only; article/newsletter outreach comes later (TODO.md).
+    return any(h in hay for h in _SEARCH_HINTS)
 
 
-def serper_search(query: str, num: int = 20, page: int = 1) -> list[dict]:
-    """Return Serper organic results [{title, link, snippet}, ...] for a query."""
+def serper_search(query: str, num: int = 10, page: int = 1) -> list[dict]:
+    """Return Serper organic results [{title, link, snippet}, ...] for a query.
+
+    num stays at 10: Serper's free tier 400s ("Query pattern not allowed") on
+    num>10 for queries containing quoted phrases. Depth comes from page=2 instead.
+    """
     import requests  # already a dependency
 
     key = os.getenv("SERPER_API_KEY", "").strip()
@@ -545,7 +552,7 @@ def discover_via_search(known: set, max_items: int) -> tuple[list[dict], int, in
             if len(out) >= cap:
                 break
             try:
-                results = serper_search(query, num=20, page=page)
+                results = serper_search(query, num=10, page=page)
                 queries_run += 1
             except Exception as e:
                 errors += 1
@@ -607,7 +614,14 @@ def discover_from_competitor_file(known: set, max_items: int) -> tuple[list[dict
     except Exception:
         pass
 
-    rows = [c for c in data.get("candidates", []) if isinstance(c, dict) and c.get("replicable")]
+    replicable = [c for c in data.get("candidates", []) if isinstance(c, dict) and c.get("replicable")]
+    # Current phase: self-serve submission targets only. Roundups/blogs/news need email
+    # outreach — that's a later phase (TODO.md); they stay in the file as its seed list.
+    rows = [c for c in replicable if (c.get("category") or "") in SUBMITTABLE_CATEGORIES]
+    outreach_skipped = len(replicable) - len(rows)
+    if outreach_skipped:
+        print(f"[research] competitor file: {outreach_skipped} outreach-phase entr(ies) "
+              f"(roundup/blog/news/forum) skipped — submittable categories only.")
     rows.sort(key=lambda c: c.get("domain_authority") or 0, reverse=True)
 
     out: list[dict] = []
