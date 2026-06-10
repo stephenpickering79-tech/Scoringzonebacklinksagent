@@ -1,7 +1,0 @@
-{
-  "_comment": "Domains the agent is ALLOWED to auto-submit to. Everything else an approver picks is flagged 'needs manual submit' for human review (protects scoringzone.net from low-quality/automated link-spam penalties). The scripted sites (eatsleepgolf.net, tinylaunch.com) are always allowed even if not listed here. Add only vetted, relevant, editorially-reviewed directories. Match is by registrable domain, case-insensitive, www stripped.",
-  "domains": [
-    "eatsleepgolf.net",
-    "tinylaunch.com"
-  ]
-}

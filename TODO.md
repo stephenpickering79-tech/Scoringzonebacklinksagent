@@ -18,8 +18,10 @@ newsletters and editorial coverage need personal outreach — deferred to here.
   surface again when ready.
 
 ## Other deferred items
-- Per-site submit scripts beyond Eat Sleep Golf / Tinylaunch (grow the
-  auto-submit allowlist as directories are vetted).
+- Email-verification poller: watch the CONTACT_EMAIL inbox (IMAP) for "confirm
+  your listing" emails after a submission and open the confirm link in the same
+  Steel session — closes the loop on "submitted but never went live" targets,
+  and unlocks the live-link item below.
 - GitHub Actions fallback scheduler (Railway is the only scheduler today).
 - Live-link verification of email-confirmed listings (listing URLs arrive by
   email; no inbox access).

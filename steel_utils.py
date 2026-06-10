@@ -63,6 +63,16 @@ from steel import Steel
 
 load_dotenv()
 
+# Metadata about the most recently created Steel session (id / profile_id / viewer
+# URL). Lets callers of steel_page() grab the persisted profile id or replay link
+# without changing the context-manager's yield shape.
+_LAST_SESSION_INFO: dict = {}
+
+
+def last_session_info() -> dict:
+    """Return {session_id, profile_id, viewer_url} for the most recent steel_page() session."""
+    return dict(_LAST_SESSION_INFO)
+
 
 def steel_api_key() -> str:
     """Fetch the Steel API key from environment.
@@ -288,12 +298,22 @@ def steel_page(
     api_timeout_ms: int = 300_000,
     use_proxy: bool = True,
     headless: bool = True,  # Steel sessions are cloud anyway; this affects the local Playwright side
+    credentials: Optional[dict] = None,  # e.g. {} → enable Steel credential injection with defaults
+    profile_id: Optional[str] = None,  # reuse a persisted (logged-in) browser profile
+    persist_profile: bool = False,  # save this session's profile for later reuse
 ) -> Generator[tuple[Playwright, Browser, Page, Steel, str], None, None]:
     """Context manager that gives you a fresh Steel cloud browser session with CAPTCHA solving.
 
     Yields: (playwright, browser, page, client, session_id)
 
     Automatically releases the session on exit (important for credit usage).
+
+    Credential injection: pass credentials={} (or with auto_submit/blur_fields/exact_origin
+    overrides) and Steel auto-fills + auto-submits any login form matching a credential
+    stored via client.credentials.create() — values never reach this process or screenshots.
+    Profiles: pass persist_profile=True to capture cookies/auth for reuse, then profile_id=...
+    on later sessions to start already logged in. The session's profile_id is exposed via
+    the module-level last_session_info() helper after the session is created.
 
     Example:
         with steel_page() as (pw, browser, page, client, sid):
@@ -302,12 +322,40 @@ def steel_page(
     """
     client = Steel(steel_api_key=steel_api_key())
 
-    session = client.sessions.create(
+    create_kwargs: dict = dict(
         solve_captcha=solve_captcha,
         api_timeout=api_timeout_ms,
         use_proxy=use_proxy,
     )
+    if credentials is not None:
+        create_kwargs["credentials"] = credentials
+    if profile_id:
+        create_kwargs["profile_id"] = profile_id
+    if persist_profile:
+        create_kwargs["persist_profile"] = True
+
+    # Steel's API occasionally 504s under load (Cloudflare says retry after ~120s).
+    # Without a retry, one transient outage parks an approval as a terminal "error".
+    session = None
+    for attempt in range(3):
+        try:
+            session = client.sessions.create(**create_kwargs)
+            break
+        except Exception as e:
+            status = getattr(e, "status_code", None)
+            retryable = status is None or status >= 500 or status == 429
+            if not retryable or attempt == 2:
+                raise
+            wait = 120 if status else 30
+            print(f"[steel] session create failed ({type(e).__name__}, status={status}) — "
+                  f"retry {attempt + 1}/2 in {wait}s")
+            time.sleep(wait)
     session_id = session.id
+    _LAST_SESSION_INFO.update(
+        session_id=session_id,
+        profile_id=getattr(session, "profile_id", None),
+        viewer_url=getattr(session, "session_viewer_url", None),
+    )
 
     # The existing pattern prints the viewer URL — extremely useful for debugging submissions
     viewer_url = getattr(session, "session_viewer_url", None)
@@ -358,17 +406,20 @@ def steel_page(
             print(f"Warning: could not release session {session_id}: {e}")
 
 
-def wait_for_captchas(client: Steel, session_id: str, timeout_sec: int = 120) -> None:
+def wait_for_captchas(client: Steel, session_id: str, timeout_sec: int = 120) -> bool:
     """Poll until Steel reports no active CAPTCHA solving tasks.
 
     Call this after navigation or actions that are likely to trigger CAPTCHAs.
+    Returns True when no CAPTCHA is active (solved or none appeared), False if
+    solving was still in progress when the timeout expired. Callers that ignore
+    the return value behave exactly as before.
     """
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         try:
             status = client.sessions.captchas.status(session_id)
         except Exception:
-            return  # If we can't query, assume we're good or the session is gone
+            return True  # If we can't query, assume we're good or the session is gone
 
         active = [
             s
@@ -376,10 +427,11 @@ def wait_for_captchas(client: Steel, session_id: str, timeout_sec: int = 120) ->
             if getattr(s, "is_solving_captcha", False)
         ]
         if not active:
-            return
+            return True
         time.sleep(1.5)
 
     print(f"Warning: still had active CAPTCHAs after {timeout_sec}s on session {session_id}")
+    return False
 
 
 # ---------------------------------------------------------------------------

@@ -74,12 +74,22 @@ Each proposal on the **Output** tab has an **Approve** button. Clicking it queue
     The buttons send it; visitors/bots without it get 401. (Strongly recommended on a public page.)
   - `MAX_AUTOSUBMITS_PER_DAY` = `3` *(optional)* — caps real submissions per day so link velocity
     stays steady/low (penalty safety).
-- **What gets submitted (SAFETY GATE):** only the **scripted sites** (Eat Sleep Golf, Tinylaunch) and
-  domains you add to **`auto_submit_allowlist.json`** are auto-submitted (via Steel, CAPTCHA-solving
-  intact). **Every other approved target is flagged "needs manual submit"** for you to review — this
-  protects scoringzone.net from Google link-spam penalties (bulk automated low-quality directory links
-  are devalued or penalized). Add a domain to the allowlist only after you've vetted it as a relevant,
-  high-quality, editorially-reviewed directory.
+- **What gets submitted (approval = authorization):** clicking **Approve** *is* the human review, so
+  the agent attempts **every approved target** — a scripted site uses its dedicated script
+  (Eat Sleep Golf, Tinylaunch), everything else goes through the generic Steel submitter
+  (CAPTCHA-solving + residential proxies intact). The remaining safety controls are the human
+  approval itself, `APPROVE_TOKEN`, the `MAX_AUTOSUBMITS_PER_DAY` velocity cap, and
+  `AUTO_SUBMIT_DRY_RUN`. A target only comes back **"needs manual submit"** when the form genuinely
+  can't be completed — and the recorded note says exactly why (login needed, CAPTCHA unsolved,
+  no form found, payment/phone wall, …) plus the Steel session id so you can watch the replay.
+- **Account-required sites (Product Hunt, Indie Hackers, …):** create the account once yourself, then
+  store the login in Steel's encrypted credential store: `python3 manage_credentials.py add
+  https://www.producthunt.com` (locally or `railway run …`). Steel auto-fills and submits the login
+  form server-side — the password never appears in the repo, Railway variables, logs, or screenshots.
+  After the first successful login the authenticated browser profile is reused automatically
+  (`data/steel_profiles.json`), so the site is logged into exactly once. For OAuth-only sites
+  ("Sign in with Google"), do the login by hand once in a Steel session via the live viewer URL —
+  the persisted profile covers every run after.
 - **Watch it happen:** the Approved tab shows **Submitting… → Submitted / Manual submit / Error** live,
   and each attempt appears on the **Sessions** tab; successful ones update the **Submissions** tab.
 

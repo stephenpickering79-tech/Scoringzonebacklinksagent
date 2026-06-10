@@ -34,3 +34,8 @@ untitled folder/
 
 # Playwright MCP scratch (screenshots/snapshots from local verification)
 .playwright-mcp/
+
+# Brand assets the generic submitter uploads to logo/screenshot form fields —
+# committed on purpose (exception to the *.png ignore above).
+!/assets/logo.png
+!/assets/screenshot.png
